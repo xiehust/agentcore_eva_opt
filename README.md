@@ -182,6 +182,15 @@ and pidfiles under `.run/`, waits until each answers, and is idempotent:
 Override ports with `BACKEND_PORT` / `FRONTEND_PORT`. Logs:
 `.run/backend.log`, `.run/frontend.log`.
 
+**Production / internet-facing** — `./scripts/start.sh --prod` runs the
+backend alone on `0.0.0.0:8787`, serving the built SPA from `dist/`
+(building it first if missing) and requiring a password for every `/api`
+route. The password comes from `LAB4_AUTH_PASSWORD` or is generated into
+`.run/auth_password` on first run. Sessions are stateless signed HttpOnly
+cookies (12 h TTL; rotating the password invalidates them all). This
+single-port mode is what sits behind the ALB + CloudFront (see
+[Exposing to the internet](#exposing-to-the-internet-alb--cloudfront)).
+
 **Or manually, in two terminals:**
 
 ```bash
@@ -207,6 +216,30 @@ the browser**. Use **"Test connection"** to confirm the resolved identity.
 > tears everything down. Always run it when finished.
 
 Default region is `us-west-2` (override in the credentials panel).
+
+### Exposing to the internet (ALB + CloudFront)
+
+The deployed setup (us-west-2) chains **CloudFront → ALB → EC2 :8787** with
+defense in depth:
+
+- **App password** — `LAB4_AUTH_PASSWORD` gates every `/api` route and the
+  FastAPI docs behind `POST /api/auth/login` (signed HttpOnly cookie, 12 h).
+  The SPA shell itself is public but contains no data.
+- **ALB** (`agentxray-alb`) — internet-facing, HTTP :80 → target group
+  `agentxray-tg` (instance :8787, health check `/api/health`). Its security
+  group only admits the **CloudFront origin-facing prefix list**
+  (`pl-82a045eb`), so the ALB cannot be reached directly.
+- **EC2 security group** — port 8787 only admits the ALB's security group.
+- **CloudFront** — HTTPS for viewers (`redirect-to-https`), origin fetch over
+  HTTP to the ALB. Default behavior uses `CachingDisabled` +
+  `AllViewer` origin-request policy (cookies must reach the origin);
+  `/assets/*` (content-hashed) uses `CachingOptimized` for edge caching.
+
+To recreate: the CLI calls are documented in the git history of this section;
+in short — create an ALB SG admitting `pl-82a045eb:80`, allow that SG →
+instance :8787, `create-target-group`/`create-load-balancer`/`create-listener`,
+then `cloudfront create-distribution` with the ALB as an HTTP-only custom
+origin. Run the app with `./scripts/start.sh --prod`.
 
 ### Progress persistence
 

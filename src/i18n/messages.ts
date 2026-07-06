@@ -53,6 +53,15 @@ export interface Messages {
     showCode: string;
     hideCode: string;
   };
+  auth: {
+    title: string;
+    passwordLabel: string;
+    signIn: string;
+    signingIn: string;
+    wrongPassword: string;
+    unreachable: string;
+    hint: string;
+  };
   banner: {
     warning: string;
     account: string;
@@ -626,6 +635,15 @@ export const en: Messages = {
     reset: "Reset journey",
     showCode: "▸ Show code view",
     hideCode: "▾ Hide code view",
+  },
+  auth: {
+    title: "AgentCore Optimization Console",
+    passwordLabel: "Access password",
+    signIn: "Sign in",
+    signingIn: "Signing in…",
+    wrongPassword: "Incorrect password.",
+    unreachable: "Backend unreachable — try again.",
+    hint: "This deployment is password-protected. The session lasts 12 hours and is kept in an HttpOnly cookie.",
   },
   banner: {
     warning: "⚡ Live mode — real AWS resources, incurs cost",
@@ -1385,6 +1403,15 @@ export const zh: Messages = {
     reset: "重置旅程",
     showCode: "▸ 显示代码",
     hideCode: "▾ 隐藏代码",
+  },
+  auth: {
+    title: "AgentCore 优化控制台",
+    passwordLabel: "访问密码",
+    signIn: "登录",
+    signingIn: "登录中…",
+    wrongPassword: "密码错误。",
+    unreachable: "无法连接后端 — 请重试。",
+    hint: "此部署已启用密码保护。会话有效期 12 小时,保存在 HttpOnly cookie 中。",
   },
   banner: {
     warning: "⚡ Live 模式 — 创建真实 AWS 资源，会产生费用",

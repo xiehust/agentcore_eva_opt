@@ -45,9 +45,10 @@ describe("i18n defaults", () => {
     expect(localStorage.getItem("lab4.lang")).toBe("en");
   });
 
-  it("landing page shows Chinese hero by default", () => {
+  it("landing page shows Chinese hero by default", async () => {
     render(<App />);
-    expect(screen.getByText(/端到端全流程/)).toBeInTheDocument();
+    // First paint is async: the LoginGate probes /api/auth/status on mount.
+    expect(await screen.findByText(/端到端全流程/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /开始旅程/ }),
     ).toBeInTheDocument();

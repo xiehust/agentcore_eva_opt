@@ -27,16 +27,18 @@ describe("ConsoleShell (Live mode)", () => {
     stubFetch();
   });
 
-  it("sim mode still renders the landing/wizard, not the console", () => {
+  it("sim mode still renders the landing/wizard, not the console", async () => {
     render(<App />);
+    // First paint is async: the LoginGate probes /api/auth/status on mount.
+    expect(
+      await screen.findByRole("button", { name: /start the journey/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("console-header")).not.toBeInTheDocument();
-    // Landing hero start button present.
-    expect(screen.getByRole("button", { name: /start the journey/i })).toBeInTheDocument();
   });
 
   it("opening the Live console from the landing renders the console shell", async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /open live console/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /open live console/i }));
     expect(await screen.findByTestId("console-header")).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: /console sections/i });
     expect(within(nav).getByText("Agents")).toBeInTheDocument();
@@ -50,7 +52,7 @@ describe("ConsoleShell (Live mode)", () => {
 
   it("switching back to Simulation restores the wizard", async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /open live console/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /open live console/i }));
     await screen.findByTestId("console-header");
     fireEvent.click(screen.getByRole("button", { name: /simulation/i }));
     expect(screen.queryByTestId("console-header")).not.toBeInTheDocument();
@@ -58,7 +60,7 @@ describe("ConsoleShell (Live mode)", () => {
 
   it("navigates between console sections", async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /open live console/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /open live console/i }));
     await screen.findByTestId("console-header");
     const nav = screen.getByRole("navigation", { name: /console sections/i });
     fireEvent.click(within(nav).getByText("Datasets"));
