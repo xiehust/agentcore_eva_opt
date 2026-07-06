@@ -17,6 +17,7 @@ export type ConsoleSection =
   | "datasets"
   | "evaluators"
   | "runs"
+  | "insights"
   | "experiments"
   | "cleanup";
 
@@ -25,6 +26,7 @@ const SECTIONS: ConsoleSection[] = [
   "datasets",
   "evaluators",
   "runs",
+  "insights",
   "experiments",
   "cleanup",
 ];
@@ -37,6 +39,8 @@ export interface ConsoleState {
   editingDatasetId?: string | "new";
   /** Pre-filled selection when jumping to Runs from an agent card. */
   runDraft?: { agentId?: string; datasetId?: string };
+  /** Pre-filled selection when jumping to Insights from a run row. */
+  insightDraft?: { agentId?: string; runId?: string };
   /** Experiment open in the detail view (undefined = list view). */
   viewingExperimentId?: string;
 }
@@ -46,6 +50,7 @@ export type ConsoleAction =
   | { type: "EDIT_AGENT"; agentId?: string | "new" }
   | { type: "EDIT_DATASET"; datasetId?: string | "new" }
   | { type: "START_RUN_WITH"; agentId?: string; datasetId?: string }
+  | { type: "START_INSIGHTS_WITH"; agentId?: string; runId?: string }
   | { type: "OPEN_EXPERIMENT"; experimentId?: string };
 
 const SECTION_KEY = "lab4.consoleSection";
@@ -92,6 +97,17 @@ function reducer(state: ConsoleState, action: ConsoleAction): ConsoleState {
         ...state,
         section: "runs",
         runDraft: { agentId: action.agentId, datasetId: action.datasetId },
+      };
+    case "START_INSIGHTS_WITH":
+      try {
+        localStorage.setItem(SECTION_KEY, "insights");
+      } catch {
+        /* storage unavailable */
+      }
+      return {
+        ...state,
+        section: "insights",
+        insightDraft: { agentId: action.agentId, runId: action.runId },
       };
     default:
       return state;

@@ -97,7 +97,7 @@ export function Step6Bundles() {
 
   return (
     <div>
-      <StepHeader index={6} title={t.steps.bundles.title} lede={t.steps.bundles.lede} />
+      <StepHeader index={7} title={t.steps.bundles.title} lede={t.steps.bundles.lede} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card eyebrow={t.step6.controlEyebrow} title={t.step6.controlTitle} accent="none">

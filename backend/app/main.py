@@ -20,6 +20,7 @@ from .routers import (
     evaluators,
     experiments,
     health,
+    insights,
     recommend,
     runs,
     samples,
@@ -65,6 +66,7 @@ app.include_router(datasets.router)
 app.include_router(runs.router)
 app.include_router(samples.router)
 app.include_router(experiments.router)
+app.include_router(insights.router)
 
 
 @app.get("/")

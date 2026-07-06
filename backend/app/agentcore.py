@@ -218,6 +218,71 @@ def poll_batch_evaluation(
     return client.get_batch_evaluation(batchEvaluationId=batch_id)
 
 
+# ─── Insights (failure analysis / user intent / execution summary) ──────────
+# Insights reuse the batch-evaluation API: StartBatchEvaluation with an
+# `insights` list INSTEAD of `evaluators` (the two are mutually exclusive).
+INSIGHT_TYPES = [
+    "Builtin.Insight.FailureAnalysis",
+    "Builtin.Insight.UserIntent",
+    "Builtin.Insight.ExecutionSummary",
+]
+
+
+def start_insights_evaluation(
+    client: Any,
+    *,
+    name: str,
+    service_name: str,
+    log_groups: list[str],
+    insights: list[str] | None = None,
+    session_ids: list[str] | None = None,
+    time_range: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Start an insights analysis over agent sessions.
+
+    Scope with either explicit ``session_ids`` (e.g. a past run's sessions) or
+    a ``time_range`` {startTime, endTime}. Max 500 sessions per analysis.
+    """
+    filter_config: dict[str, Any] = {}
+    if session_ids:
+        filter_config["sessionIds"] = session_ids
+    if time_range:
+        filter_config["timeRange"] = time_range
+    cw: dict[str, Any] = {
+        "serviceNames": [service_name],
+        "logGroupNames": log_groups,
+    }
+    if filter_config:
+        cw["filterConfig"] = filter_config
+    return client.start_batch_evaluation(
+        batchEvaluationName=name,
+        insights=[{"insightId": i} for i in (insights or INSIGHT_TYPES)],
+        dataSourceConfig={"cloudWatchLogs": cw},
+        clientToken=str(uuid.uuid4()),
+    )
+
+
+def parse_insights(result: dict[str, Any]) -> dict[str, Any]:
+    """Pull the three insight result trees from a get_batch_evaluation result.
+
+    Only keys present in the response are returned:
+      * failures            — categories → subCategories → rootCauses (each
+                              root cause carries a `recommendation` + sessions)
+      * userIntents         — flat clusters with per-session userMessages
+      * executionSummaries  — flat clusters with approachTaken/finalOutcome
+    """
+    out: dict[str, Any] = {}
+    if "failureAnalysisResult" in result:
+        out["failures"] = result["failureAnalysisResult"].get("failures", [])
+    if "userIntentResult" in result:
+        out["userIntents"] = result["userIntentResult"].get("userIntents", [])
+    if "executionSummaryResult" in result:
+        out["executionSummaries"] = result["executionSummaryResult"].get(
+            "executionSummaries", []
+        )
+    return out
+
+
 # ─── Custom evaluators (control plane) ──────────────────────────────────────
 def create_llm_judge_evaluator(
     client: Any,

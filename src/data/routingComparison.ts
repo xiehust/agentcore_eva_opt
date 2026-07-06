@@ -52,11 +52,12 @@ export const JOURNEY_SUMMARY: SummaryRow[] = [
   { step: "2", action: "Deployed HR Assistant to AgentCore Runtime", api: "create_agent_runtime" },
   { step: "3", action: "Created baseline Configuration Bundle and sent traffic", api: "create_configuration_bundle · invoke_agent_runtime" },
   { step: "4", action: "Measured baseline performance", api: "start_batch_evaluation · get_batch_evaluation" },
-  { step: "5a", action: "Generated improved system prompt from traces", api: "start_recommendation (SYSTEM_PROMPT)" },
-  { step: "5b", action: "Generated improved tool descriptions", api: "start_recommendation (TOOL_DESCRIPTION)" },
-  { step: "6", action: "Packaged control and treatment configs", api: "create_configuration_bundle" },
-  { step: "7", action: "A/B tested config change via config-bundle routing", api: "create_ab_test (configurationBundle)" },
-  { step: "8", action: "Canary rollout of v2 via target-based routing", api: "create_ab_test (target, 90/10)" },
+  { step: "5", action: "Triaged failures, intents & behavior with Insights", api: "start_batch_evaluation (insights)" },
+  { step: "6a", action: "Generated improved system prompt from traces", api: "start_recommendation (SYSTEM_PROMPT)" },
+  { step: "6b", action: "Generated improved tool descriptions", api: "start_recommendation (TOOL_DESCRIPTION)" },
+  { step: "7", action: "Packaged control and treatment configs", api: "create_configuration_bundle" },
+  { step: "8", action: "A/B tested config change via config-bundle routing", api: "create_ab_test (configurationBundle)" },
+  { step: "9", action: "Canary rollout of v2 via target-based routing", api: "create_ab_test (target, 90/10)" },
 ];
 
 /** Key takeaways (notebook conclusions). */

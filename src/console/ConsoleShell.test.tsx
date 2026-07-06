@@ -12,6 +12,7 @@ function stubFetch() {
       if (url.includes("/agents")) return json({ agents: [] });
       if (url.includes("/datasets")) return json({ datasets: [] });
       if (url.includes("/runs")) return json({ runs: [] });
+      if (url.includes("/insights")) return json({ reports: [] });
       if (url.includes("/evaluators/list")) return json({ evaluators: [] });
       if (url.includes("/session/")) return { ok: false, status: 404, statusText: "Not Found", json: async () => ({}) };
       return json({ ok: true });
@@ -42,6 +43,7 @@ describe("ConsoleShell (Live mode)", () => {
     expect(within(nav).getByText("Datasets")).toBeInTheDocument();
     expect(within(nav).getByText("Evaluators")).toBeInTheDocument();
     expect(within(nav).getByText("Runs")).toBeInTheDocument();
+    expect(within(nav).getByText("Insights")).toBeInTheDocument();
     // No wizard stepper in live mode.
     expect(screen.queryByRole("navigation", { name: /optimization journey steps/i })).not.toBeInTheDocument();
   });
@@ -63,5 +65,7 @@ describe("ConsoleShell (Live mode)", () => {
     expect(await screen.findByText(/no datasets yet/i)).toBeInTheDocument();
     fireEvent.click(within(nav).getByText("Runs"));
     expect(await screen.findByText(/no runs yet/i)).toBeInTheDocument();
+    fireEvent.click(within(nav).getByText("Insights"));
+    expect(await screen.findByText(/no insight reports yet/i)).toBeInTheDocument();
   });
 });

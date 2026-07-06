@@ -1,6 +1,6 @@
 /**
  * Read-only boto3 snippets mirroring the Lab 4 notebook cells. Keyed by the
- * 9 step keys (see steps manifest). Shown in each step's "Code view" so the
+ * 10 step keys (see steps manifest). Shown in each step's "Code view" so the
  * simulation doubles as an API reference. Faithful to the notebook, trimmed
  * for readability.
  */
@@ -9,6 +9,7 @@ export type StepKey =
   | "deploy"
   | "baseline"
   | "eval"
+  | "insights"
   | "recommend"
   | "bundles"
   | "bundleAB"
@@ -73,6 +74,29 @@ eval_resp = agentcore.start_batch_evaluation(
     clientToken=str(uuid.uuid4()),
 )
 result = agentcore.get_batch_evaluation(batchEvaluationId=eval_resp["batchEvaluationId"])`,
+
+  insights: `# Insights reuse the batch-evaluation API: pass insights= INSTEAD of
+# evaluators= (they are mutually exclusive; max one active job per account).
+resp = agentcore.start_batch_evaluation(
+    batchEvaluationName=f"HRInsights{SUFFIX}",
+    insights=[
+        {"insightId": "Builtin.Insight.FailureAnalysis"},   # why it fails
+        {"insightId": "Builtin.Insight.UserIntent"},        # what users want
+        {"insightId": "Builtin.Insight.ExecutionSummary"},  # how it behaves
+    ],
+    dataSourceConfig={"cloudWatchLogs": {
+        "serviceNames": [SERVICE_NAME],
+        "logGroupNames": [SPANS_LOG_GROUP, LOG_GROUP],
+        "filterConfig": {"sessionIds": baseline_session_ids},
+    }},
+    clientToken=str(uuid.uuid4()),
+)
+
+result = agentcore.get_batch_evaluation(batchEvaluationId=resp["batchEvaluationId"])
+# → failureAnalysisResult.failures[]        categories → subCategories → rootCauses
+#     each root cause: {name, recommendation, affectedSessionCount, affectedSessions}
+# → userIntentResult.userIntents[]          clustered intents, ranked by frequency
+# → executionSummaryResult.executionSummaries[]  behaviour patterns + outcomes`,
 
   recommend: `# 5a — System prompt recommendation (optimise a target metric from traces)
 sp = agentcore.start_recommendation(

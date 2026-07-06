@@ -101,6 +101,77 @@ export interface RunRecord {
   updatedAt: number;
 }
 
+// ─── Insight reports (failure analysis / user intent / execution summary) ──
+export type InsightReportStatus = "pending" | "analyzing" | "completed" | "failed";
+
+export interface FailureRootCause {
+  name: string;
+  description?: string;
+  recommendation?: string;
+  affectedSessionCount: number;
+  affectedSessions?: { sessionId: string }[];
+}
+
+export interface FailureSubCategory {
+  clusterId?: number;
+  name: string;
+  description?: string;
+  affectedSessionCount: number;
+  rootCauses?: FailureRootCause[];
+}
+
+export interface FailureCategory {
+  clusterId?: number;
+  name: string;
+  description?: string;
+  affectedSessionCount: number;
+  subCategories?: FailureSubCategory[];
+}
+
+export interface UserIntentCluster {
+  clusterId?: number;
+  name: string;
+  description?: string;
+  affectedSessionCount: number;
+  affectedSessions?: { sessionId: string; userMessages?: string[] }[];
+}
+
+export interface ExecutionSummaryCluster {
+  clusterId?: number;
+  name: string;
+  description?: string;
+  affectedSessionCount: number;
+  affectedSessions?: {
+    sessionId: string;
+    approachTaken?: string;
+    finalOutcome?: string;
+  }[];
+}
+
+export interface InsightResults {
+  failures?: FailureCategory[];
+  userIntents?: UserIntentCluster[];
+  executionSummaries?: ExecutionSummaryCluster[];
+}
+
+export interface InsightReportRecord {
+  id: string;
+  agentId: string | null;
+  agentName: string;
+  /** "run:<runId>" (session-scoped) or "agent" (time-range scoped). */
+  source: string;
+  insights: string[];
+  sessionIds: string[] | null;
+  timeRange: { startTime: string; endTime: string } | null;
+  batchEvaluationId: string | null;
+  results: InsightResults | null;
+  status: InsightReportStatus;
+  error: string | null;
+  jobId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SampleAgent {
   name: string;
   description: string;
@@ -475,6 +546,26 @@ export class LiveApi {
   deleteExperiment(id: string) {
     return this.request<{ ok: boolean }>("DELETE", `/experiments/${id}`);
   }
+  // ─── Console: insight reports ─────────────────────────────────────────
+  listInsightReports() {
+    return this.request<{ reports: InsightReportRecord[] }>("GET", "/insights");
+  }
+  createInsightReport(body: {
+    agentId: string;
+    insights?: string[];
+    runId?: string;
+    lookbackHours?: number;
+    creds?: LiveCreds | null;
+  }) {
+    return this.request<{ reportId: string; jobId: string }>("POST", "/insights", body);
+  }
+  getInsightReport(id: string) {
+    return this.request<InsightReportRecord>("GET", `/insights/${id}`);
+  }
+  deleteInsightReport(id: string) {
+    return this.request<{ ok: boolean }>("DELETE", `/insights/${id}`);
+  }
+
   listEvaluators(creds?: LiveCreds | null) {
     return this.request<{
       evaluators: {

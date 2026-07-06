@@ -53,10 +53,11 @@ def test_sample_datasets_list() -> None:
     assert resp.status_code == 200
     datasets = resp.json()["datasets"]
     by_key = {d["key"]: d for d in datasets}
-    assert set(by_key) == {"baseline", "gateway", "target"}
+    assert set(by_key) == {"baseline", "gateway", "target", "failure"}
     assert len(by_key["baseline"]["items"]) == 10
     assert len(by_key["gateway"]["items"]) == 20
     assert len(by_key["target"]["items"]) == 10
+    assert len(by_key["failure"]["items"]) == 12
     for d in datasets:
         for item in d["items"]:
             assert item["prompt"]

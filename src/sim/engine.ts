@@ -119,6 +119,16 @@ export function evalStages(what: string, terminal = "COMPLETED"): SimStage[] {
   ];
 }
 
+/** Insights analysis sequence: per-session LLM triage, then clustering. */
+export function insightStages(terminal = "COMPLETED"): SimStage[] {
+  return [
+    { key: "start", label: "Starting insights analysis", ms: 300 },
+    { key: "discover", label: "Discovering sessions from CloudWatch", ms: 480 },
+    { key: "analyze", label: "Analyzing each session (LLM triage)", ms: 760 },
+    { key: "cluster", label: "Clustering findings across sessions", ms: 620, terminal },
+  ];
+}
+
 /** The resource categories torn down during cleanup (Step 9). */
 export const CLEANUP_ITEMS: CleanupItem[] = [
   { key: "abtests", label: "A/B tests", detail: "bundle + target routing tests" },

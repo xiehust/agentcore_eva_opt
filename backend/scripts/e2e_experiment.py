@@ -109,12 +109,18 @@ def main():
             "recommendedSystemPrompt": sp["recommendedSystemPrompt"],
             "usedFallbackSp": sp.get("usedFallback", False),
         })
-        print(f"  sp usedFallback={sp.get('usedFallback')} len={len(sp['recommendedSystemPrompt'])}")
+        print(
+            f"  sp usedFallback={sp.get('usedFallback')} "
+            f"len={len(sp['recommendedSystemPrompt'])}"
+        )
 
         # Tool-description recommendation
         td_job = req("POST", "/recommend/tool-descriptions", {
             "name": n["tdRec"],
-            "tools": [{"toolName": k, "description": v} for k, v in config["toolDescriptions"].items()],
+            "tools": [
+                {"toolName": k, "description": v}
+                for k, v in config["toolDescriptions"].items()
+            ],
             "logGroupArns": [dep["logGroup"]], "serviceNames": [dep["serviceName"]],
         })["jobId"]
         put_artifacts(exp_id, {"recommendTdJobId": td_job})
@@ -148,8 +154,10 @@ def main():
             "commitMessage": "Treatment: accepted recommendation",
         })
         put_artifacts(exp_id, {
-            "controlBundleId": control["bundleId"], "controlBundleVersion": control["versionId"],
-            "treatmentBundleId": treatment["bundleId"], "treatmentBundleVersion": treatment["versionId"],
+            "controlBundleId": control["bundleId"],
+            "controlBundleVersion": control["versionId"],
+            "treatmentBundleId": treatment["bundleId"],
+            "treatmentBundleVersion": treatment["versionId"],
         }, stage="abtest")
         print(f"BUNDLES control={control['bundleId']}@{control['versionId']} "
               f"treatment={treatment['bundleId']}@{treatment['versionId']}")
@@ -172,8 +180,10 @@ def main():
         ab = req("POST", "/abtest/config-bundle", {
             "name": n["bundleAbTest"], "gatewayArn": gw["gatewayArn"],
             "roleArn": gw["roleArn"], "onlineEvalArn": gw["onlineEvalArn"],
-            "controlBundleArn": a["controlBundleId"], "controlVersion": a["controlBundleVersion"],
-            "treatmentBundleArn": a["treatmentBundleId"], "treatmentVersion": a["treatmentBundleVersion"],
+            "controlBundleArn": a["controlBundleId"],
+            "controlVersion": a["controlBundleVersion"],
+            "treatmentBundleArn": a["treatmentBundleId"],
+            "treatmentVersion": a["treatmentBundleVersion"],
         })
         put_artifacts(exp_id, {"bundleAbTestId": ab["abTestId"]})
         print(f"AB SETUP gw={gw['gatewayId']} ab={ab['abTestId']}")
@@ -279,7 +289,11 @@ def main():
         }
         print("cleanup ids:", json.dumps(ids))
         res = req("POST", "/cleanup", ids)
-        put_artifacts(exp_id, {"cleanupResults": res["results"], "cleanedAt": time.time()}, stage="done")
+        put_artifacts(
+            exp_id,
+            {"cleanupResults": res["results"], "cleanedAt": time.time()},
+            stage="done",
+        )
         for r in res["results"]:
             mark = "✓" if r["status"] == "deleted" else "–"
             print(f"  {mark} {r['category']} {r['detail'][:80]}")

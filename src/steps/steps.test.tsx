@@ -11,9 +11,9 @@ describe("data: routing + summary", () => {
     expect(ROUTING_COMPARISON.map((r) => r.dimension)).toContain("Runtimes needed");
   });
 
-  it("journey summary covers steps 2 through 8", () => {
+  it("journey summary covers steps 2 through 9 (incl. the insights triage)", () => {
     expect(JOURNEY_SUMMARY.map((r) => r.step)).toEqual(
-      expect.arrayContaining(["2", "3", "4", "5a", "5b", "6", "7", "8"]),
+      expect.arrayContaining(["2", "3", "4", "5", "6a", "6b", "7", "8", "9"]),
     );
   });
 });

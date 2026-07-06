@@ -10,14 +10,21 @@ import {
 import { createElement } from "react";
 import type { StepKey } from "../data/codeSnippets";
 import { makeLiveApi } from "../lib/liveApi";
-import { getSessionId, isValidSnapshot, toSnapshot } from "../lib/persistence";
+import {
+  getSessionId,
+  isValidSnapshot,
+  migrateSnapshot,
+  toSnapshot,
+} from "../lib/persistence";
 
-/** The 9 step keys, in order (mirror the notebook Steps 1–9). */
+/** The 10 step keys, in order (notebook Steps 1–9 + the Insights triage step
+ * inserted between evaluation and recommendations). */
 export const STEP_ORDER: StepKey[] = [
   "config",
   "deploy",
   "baseline",
   "eval",
+  "insights",
   "recommend",
   "bundles",
   "bundleAB",
@@ -230,7 +237,7 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
       .loadSession(getSessionId())
       .then((resp) => {
         if (isValidSnapshot(resp.data)) {
-          dispatch({ type: "HYDRATE", snapshot: resp.data });
+          dispatch({ type: "HYDRATE", snapshot: migrateSnapshot(resp.data) });
         }
       })
       .catch(() => {

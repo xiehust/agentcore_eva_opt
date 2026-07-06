@@ -11,6 +11,7 @@ import { AgentsPage } from "./pages/AgentsPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
 import { EvaluatorsPage } from "./pages/EvaluatorsPage";
 import { RunsPage } from "./pages/RunsPage";
+import { InsightsPage } from "./pages/InsightsPage";
 import { ExperimentsPage } from "./pages/ExperimentsPage";
 import { CleanupPage } from "./pages/CleanupPage";
 
@@ -31,6 +32,7 @@ const PAGES: Record<ConsoleSection, () => JSX.Element> = {
   datasets: DatasetsPage,
   evaluators: EvaluatorsPage,
   runs: RunsPage,
+  insights: InsightsPage,
   experiments: ExperimentsPage,
   cleanup: CleanupPage,
 };
@@ -99,6 +101,7 @@ function ConsoleNav() {
     "datasets",
     "evaluators",
     "runs",
+    "insights",
     "experiments",
     "cleanup",
   ];

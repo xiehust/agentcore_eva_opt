@@ -170,6 +170,18 @@ class RunCreateRequest(CredsRequest):
     waitSeconds: int = 90
 
 
+class InsightReportCreateRequest(CredsRequest):
+    """One-time insights analysis. Scope the sessions with EITHER a past run
+    (its sessionIds) OR a lookback window over the agent's recent traffic."""
+
+    agentId: str
+    # Insight IDs (Builtin.Insight.*). None → all three.
+    insights: list[str] | None = None
+    # Session scope — exactly one of:
+    runId: str | None = None
+    lookbackHours: int | None = None
+
+
 # Ordered stages of an optimization experiment ("furthest reached" pointer).
 EXPERIMENT_STAGES = (
     "recommend",

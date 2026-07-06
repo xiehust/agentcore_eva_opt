@@ -2,16 +2,16 @@
 
 An interactive rebuild of the AWS Bedrock AgentCore "Lab 4 — Agent Optimization"
 notebook. It walks through the complete optimization journey for an **HR
-Assistant** agent — deploy → baseline traffic → batch evaluation → AI
-recommendations → configuration bundles → A/B testing (config-bundle routing and
-target-based canary) → promotion → cleanup — as a guided, animated web
-experience.
+Assistant** agent — deploy → baseline traffic → batch evaluation → **failure
+insights** → AI recommendations → configuration bundles → A/B testing
+(config-bundle routing and target-based canary) → promotion → cleanup — as a
+guided, animated web experience.
 
 It runs in **two modes**, switchable from the header toggle:
 
 | Mode | What it does |
 | ---- | ------------ |
-| **Simulation** (default) | The guided 9-step wizard. Fully self-contained: no AWS credentials, no cost, no real resources. All identifiers (account `123456789012`, ARNs, IDs) are fabricated and every async op runs on compressed timers with deterministic results. |
+| **Simulation** (default) | The guided 10-step wizard. Fully self-contained: no AWS credentials, no cost, no real resources. All identifiers (account `123456789012`, ARNs, IDs) are fabricated and every async op runs on compressed timers with deterministic results. |
 | **⚡ Live AWS** | A general-purpose **agent evaluation console** issuing **real** `bedrock-agentcore` calls through a local backend. Upload or edit any agent's Python code, manage evaluation datasets, deploy real runtimes, and run real batch evaluations with built-in or custom LLM-judge evaluators. **Incurs AWS cost.** |
 
 ## Architecture
@@ -20,11 +20,11 @@ It runs in **two modes**, switchable from the header toggle:
 flowchart LR
     subgraph Browser["Browser — React 18 + Vite"]
         SIM["Simulation wizard<br/>(9 steps, no AWS)"]
-        CONSOLE["Live console<br/>Agents · Datasets · Evaluators<br/>Runs · Experiments · Cleanup"]
+        CONSOLE["Live console<br/>Agents · Datasets · Evaluators<br/>Runs · Insights · Experiments · Cleanup"]
     end
 
     subgraph Backend["FastAPI backend (localhost:8787)"]
-        API["Routers<br/>/agents /datasets /runs<br/>/experiments /bundles /abtest<br/>/recommend /cleanup /samples"]
+        API["Routers<br/>/agents /datasets /runs<br/>/insights /experiments /bundles<br/>/abtest /recommend /cleanup /samples"]
         JOBS["Background jobs<br/>(deploy · traffic · eval · monitor)"]
         DB[("SQLite<br/>agents · datasets · runs<br/>experiments · jobs · sessions")]
         DEPLOYER["deployer.py<br/>pip (ARM64) → zip → S3"]
@@ -34,7 +34,7 @@ flowchart LR
         RT["AgentCore Runtime<br/>(agent code, Strands)"]
         GW["AgentCore Gateway<br/>(A/B traffic routing)"]
         AB["A/B tests<br/>config-bundle 50/50<br/>target canary 90/10"]
-        EVAL["Evaluations<br/>batch + online<br/>LLM-as-a-judge"]
+        EVAL["Evaluations<br/>batch + online<br/>LLM-as-a-judge<br/>+ Insights (triage)"]
         REC["Recommendations<br/>(prompt + tool descriptions)"]
         CW[("CloudWatch<br/>traces / spans")]
         S3[("S3<br/>deployment package")]
@@ -75,13 +75,15 @@ mid-flow. All long AWS operations run as background jobs polled via
 | **Landing** — choose the simulated wizard or the Live console | **Runs** — pick agent + dataset + evaluators; real batch-evaluation scores |
 | ![Experiment A/B](docs/screenshots/console-experiment-ab.png) | ![Agent editor](docs/screenshots/console-agent-editor.png) |
 | **Experiment** — config-bundle A/B results with significance + verdict + promote | **Agent editor** — CodeMirror agent code, pip requirements, prompt/tool config |
+| ![Sim insights](docs/screenshots/sim-insights.png) | ![Live insights](docs/screenshots/console-insights.png) |
+| **Sim Step 5 — Failure Insights** — simulated triage: failure tree + intents | **Insights (Live)** — real failure analysis / intents / execution patterns |
 
 *(Screenshots show real data from an end-to-end run against AWS us-west-2.)*
 
 ## Live console
 
 Switching to Live AWS opens the console (also reachable from the landing page
-via **"Open Live console"**). It has six sections:
+via **"Open Live console"**). It has seven sections:
 
 - **Agents** — create agents from the built-in **HR Assistant sample**, a blank
   template, or an uploaded `.py` file; edit code in an in-browser CodeMirror
@@ -98,6 +100,16 @@ via **"Open Live console"**). It has six sections:
   one runtime session per dataset item, waits for traces to land in CloudWatch,
   runs a batch evaluation filtered to those sessions, and renders the scores.
   Run history is persisted server-side and survives reloads/restarts.
+- **Insights** — triage analysis over agent sessions (AgentCore Insights,
+  public preview): **failure analysis** (categories → subcategories → root
+  causes, each with a suggested fix), **user intent** clustering, and
+  **execution summary** patterns. Scope the sessions to a past Run (one click
+  from a run's detail: *"Triage with Insights"*) or a recent time window.
+  Insights reuse the batch-evaluation API — `insights` instead of `evaluators`
+  (mutually exclusive; one active batch evaluation per account). A built-in
+  **failure-injection prompt set** (unknown employee IDs, out-of-capability
+  asks, hallucination bait) ships as a sample dataset to make failure patterns
+  reproducible. Report history is persisted server-side.
 - **Experiments** — the guided optimization flow, generalized from the wizard's
   steps 5–8: AI **recommendations** (system prompt + tool descriptions, from
   the agent's recent traces) → **control/treatment config bundles** → gateway

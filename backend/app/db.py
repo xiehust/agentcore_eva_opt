@@ -10,6 +10,8 @@ Tables:
                         requirements (JSON) + last deployment state (JSON).
   * ``datasets``      — evaluation datasets: JSON items [{prompt, context?}].
   * ``runs``          — evaluation-run history (traffic → batch eval → scores).
+  * ``insight_reports`` — insights-analysis history (failure patterns / user
+                        intents / execution summaries over agent sessions).
 
 **Credentials are never stored.** The frontend strips AK/SK before saving, and
 this module has no notion of credentials.
@@ -111,6 +113,22 @@ def _connect() -> sqlite3.Connection:
             error                 TEXT,
             created_at            REAL NOT NULL,
             updated_at            REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS insight_reports (
+            id            TEXT PRIMARY KEY,
+            agent_id      TEXT,
+            agent_name    TEXT NOT NULL,
+            source        TEXT NOT NULL,
+            insights      TEXT NOT NULL DEFAULT '[]',
+            session_ids   TEXT,
+            time_range    TEXT,
+            batch_eval_id TEXT,
+            results       TEXT,
+            status        TEXT NOT NULL,
+            error         TEXT,
+            job_id        TEXT,
+            created_at    REAL NOT NULL,
+            updated_at    REAL NOT NULL
         );
         """
     )
@@ -635,4 +653,122 @@ def delete_experiment(experiment_id: str) -> None:
     with _lock:
         conn = _connect()
         conn.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+        conn.commit()
+
+
+# ─── Insight reports ────────────────────────────────────────────────────────
+def _insight_report_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "agentId": row["agent_id"],
+        "agentName": row["agent_name"],
+        # "run:<runId>" (session-scoped) or "agent" (time-range scoped).
+        "source": row["source"],
+        "insights": json.loads(row["insights"]),
+        "sessionIds": json.loads(row["session_ids"]) if row["session_ids"] else None,
+        "timeRange": json.loads(row["time_range"]) if row["time_range"] else None,
+        "batchEvaluationId": row["batch_eval_id"],
+        "results": json.loads(row["results"]) if row["results"] else None,
+        "status": row["status"],
+        "error": row["error"],
+        "jobId": row["job_id"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def create_insight_report(
+    report_id: str,
+    *,
+    agent_id: str | None,
+    agent_name: str,
+    source: str,
+    insights: list[str],
+    session_ids: list[str] | None = None,
+    time_range: dict[str, Any] | None = None,
+    status: str = "pending",
+) -> None:
+    now = time.time()
+    with _lock:
+        conn = _connect()
+        conn.execute(
+            """
+            INSERT INTO insight_reports (id, agent_id, agent_name, source,
+                                         insights, session_ids, time_range,
+                                         status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report_id,
+                agent_id,
+                agent_name,
+                source,
+                json.dumps(insights),
+                json.dumps(session_ids) if session_ids is not None else None,
+                json.dumps(time_range) if time_range is not None else None,
+                status,
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+
+
+def list_insight_reports() -> list[dict[str, Any]]:
+    with _lock:
+        conn = _connect()
+        rows = conn.execute(
+            "SELECT * FROM insight_reports ORDER BY created_at DESC"
+        ).fetchall()
+    return [_insight_report_row_to_dict(r) for r in rows]
+
+
+def get_insight_report(report_id: str) -> dict[str, Any] | None:
+    with _lock:
+        conn = _connect()
+        row = conn.execute(
+            "SELECT * FROM insight_reports WHERE id = ?", (report_id,)
+        ).fetchone()
+    return _insight_report_row_to_dict(row) if row else None
+
+
+def update_insight_report(
+    report_id: str,
+    *,
+    status: str | None = None,
+    error: str | None = None,
+    batch_eval_id: str | None = None,
+    results: dict[str, Any] | None = None,
+    job_id: str | None = None,
+) -> None:
+    sets: list[str] = ["updated_at = ?"]
+    params: list[Any] = [time.time()]
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if error is not None:
+        sets.append("error = ?")
+        params.append(error)
+    if batch_eval_id is not None:
+        sets.append("batch_eval_id = ?")
+        params.append(batch_eval_id)
+    if results is not None:
+        sets.append("results = ?")
+        params.append(json.dumps(results))
+    if job_id is not None:
+        sets.append("job_id = ?")
+        params.append(job_id)
+    params.append(report_id)
+    with _lock:
+        conn = _connect()
+        conn.execute(
+            f"UPDATE insight_reports SET {', '.join(sets)} WHERE id = ?", params
+        )
+        conn.commit()
+
+
+def delete_insight_report(report_id: str) -> None:
+    with _lock:
+        conn = _connect()
+        conn.execute("DELETE FROM insight_reports WHERE id = ?", (report_id,))
         conn.commit()

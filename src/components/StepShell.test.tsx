@@ -12,13 +12,13 @@ function renderShell() {
 }
 
 describe("StepShell", () => {
-  it("renders a 9-item stepper", () => {
+  it("renders a 10-item stepper", () => {
     renderShell();
     const nav = screen.getByRole("navigation", {
       name: /optimization journey steps/i,
     });
     const items = within(nav).getAllByRole("listitem");
-    expect(items).toHaveLength(9);
+    expect(items).toHaveLength(10);
   });
 
   it("locks steps after the first", () => {
@@ -28,7 +28,7 @@ describe("StepShell", () => {
       screen.getByRole("button", { name: /step 1: configuration/i }),
     ).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: /step 9: cleanup \(locked\)/i }),
+      screen.getByRole("button", { name: /step 10: cleanup \(locked\)/i }),
     ).toBeDisabled();
   });
 

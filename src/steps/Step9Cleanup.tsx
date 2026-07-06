@@ -96,7 +96,7 @@ export function Step9Cleanup() {
 
   return (
     <div>
-      <StepHeader index={9} title={t.steps.cleanup.title} lede={t.steps.cleanup.lede} />
+      <StepHeader index={10} title={t.steps.cleanup.title} lede={t.steps.cleanup.lede} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card

@@ -7,6 +7,7 @@ const CAPTIONS: Record<StepKey, string> = {
   deploy: "deploy_agent → create_agent_runtime",
   baseline: "create_configuration_bundle + invoke_agent_runtime",
   eval: "start_batch_evaluation / get_batch_evaluation",
+  insights: "start_batch_evaluation with insights= (failure / intent / execution)",
   recommend: "start_recommendation (system prompt + tool descriptions)",
   bundles: "create / get / get_version configuration_bundle",
   bundleAB: "create_gateway + create_ab_test (config-bundle variants)",

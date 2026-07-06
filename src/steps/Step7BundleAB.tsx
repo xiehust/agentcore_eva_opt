@@ -197,7 +197,7 @@ export function Step7BundleAB() {
 
   return (
     <div>
-      <StepHeader index={7} title={t.steps.bundleAB.title} lede={t.steps.bundleAB.lede} />
+      <StepHeader index={8} title={t.steps.bundleAB.title} lede={t.steps.bundleAB.lede} />
 
       <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-2">

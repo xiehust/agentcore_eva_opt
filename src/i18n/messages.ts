@@ -160,6 +160,30 @@ export interface Messages {
     emptyHint: string;
     levels: { SESSION: string; TRACE: string; TOOL_CALL: string };
   };
+  stepInsights: {
+    runEyebrow: string;
+    runTitle: string;
+    startBtn: string;
+    analyzed: string;
+    runHint: (sessions: number) => string;
+    typesEyebrow: string;
+    typesTitle: string;
+    typeFailure: string;
+    typeIntent: string;
+    typeExecution: string;
+    exclusiveNote: string;
+    resultsEyebrow: string;
+    resultsTitle: string;
+    failureBadge: (n: number) => string;
+    failuresTitle: string;
+    recommendation: string;
+    sessionCount: (n: number) => string;
+    intentsTitle: string;
+    executionTitle: string;
+    continueBtn: string;
+    bridgeNote: string;
+    emptyHint: string;
+  };
   step5: {
     spEyebrow: string;
     spTitle: string;
@@ -304,6 +328,7 @@ export interface Messages {
       datasets: string;
       evaluators: string;
       runs: string;
+      insights: string;
       experiments: string;
       cleanup: string;
     };
@@ -415,6 +440,43 @@ export interface Messages {
       emptyHistory: string;
       batchId: string;
       selectRun: string;
+      triageBtn: string;
+    };
+    insights: {
+      newEyebrow: string;
+      newTitle: string;
+      intro: string;
+      pickAgent: string;
+      scope: string;
+      scopes: { run: string; lookback: string };
+      pickRun: string;
+      noRuns: string;
+      lookbackLabel: string;
+      lookbackUnit: string;
+      pickInsights: string;
+      types: Record<string, string>;
+      startBtn: string;
+      startedHint: string;
+      historyEyebrow: string;
+      historyTitle: string;
+      emptyHistory: string;
+      sourceRun: string;
+      sourceLookback: string;
+      status: {
+        pending: string;
+        analyzing: string;
+        completed: string;
+        failed: string;
+      };
+      reportEyebrow: string;
+      resume: string;
+      failuresTitle: string;
+      noFailures: string;
+      recommendation: string;
+      sessionCount: (n: number) => string;
+      toExperimentsHint: string;
+      intentsTitle: string;
+      executionTitle: string;
     };
     agentConfig: {
       eyebrow: string;
@@ -528,7 +590,7 @@ export const en: Messages = {
       "An interactive, fully-simulated walkthrough of the AgentCore optimization journey — deploy an HR Assistant, measure it, let the platform recommend improvements, then A/B test your way to a better agent. No AWS account required.",
     start: "Start the journey →",
     simulationMode: "simulation mode",
-    nineSteps: "9 steps",
+    nineSteps: "10 steps",
     statAgent: "Agent",
     statAgentValue: "HR Assistant",
     statEvaluators: "Built-in evaluators",
@@ -543,6 +605,7 @@ export const en: Messages = {
       ["Deploy", "Ship the HR Assistant to AgentCore Runtime"],
       ["Baseline", "Send representative traffic, capture traces"],
       ["Evaluate", "Score goal success, helpfulness, correctness"],
+      ["Triage", "Insights explain WHY sessions fail and what users want"],
       ["Recommend", "Auto-improve the system prompt & tool descriptions"],
       ["A/B test", "Prove the change wins before rolling it out"],
     ],
@@ -624,6 +687,11 @@ export const en: Messages = {
       shortTitle: "Evaluate",
       lede: "Batch evaluation discovers the sessions you just sent from CloudWatch, runs each through built-in LLM evaluators, and returns aggregate scores. These become the baseline you'll try to beat with A/B testing.",
     },
+    insights: {
+      title: "Failure Insights",
+      shortTitle: "Insights",
+      lede: "Scores tell you THAT the agent underperforms — insights tell you WHY. The same batch-evaluation API, given insights instead of evaluators, triages every session: failure patterns with root causes and fixes, what users were trying to do, and how the agent behaved. These findings feed the recommendations next.",
+    },
     recommend: {
       title: "Optimization Recommendations",
       shortTitle: "Recommend",
@@ -649,6 +717,34 @@ export const en: Messages = {
       shortTitle: "Cleanup",
       lede: "Tear down every resource the journey created. Each category is deleted independently, so a partial run still cleans up what it can.",
     },
+  },
+  stepInsights: {
+    runEyebrow: "Triage",
+    runTitle: "Run insights analysis",
+    startBtn: "Run insights analysis",
+    analyzed: "Analyzed",
+    runHint: (sessions) =>
+      `Analyzes the ${sessions} baseline sessions with LLM triage, then clusters findings across sessions into failure patterns, intents, and behaviors.`,
+    typesEyebrow: "Insight types",
+    typesTitle: "Three analyses",
+    typeFailure: "failure categories → subcategories → root causes, each with a suggested fix.",
+    typeIntent: "what users were trying to accomplish, clustered and ranked by frequency.",
+    typeExecution: "how the agent approached each session and what the outcome was.",
+    exclusiveNote:
+      "insights= and evaluators= are mutually exclusive in start_batch_evaluation — triage and scoring are separate jobs, and only one batch evaluation can be active per account.",
+    resultsEyebrow: "Findings",
+    resultsTitle: "Triage report",
+    failureBadge: (n) => `failures in ${n} sessions`,
+    failuresTitle: "Failure patterns (categories → subcategories → root causes)",
+    recommendation: "Suggested fix",
+    sessionCount: (n) => `${n} session${n === 1 ? "" : "s"}`,
+    intentsTitle: "User intents (most common asks)",
+    executionTitle: "Execution patterns (how the agent solves problems)",
+    continueBtn: "Continue to recommendations →",
+    bridgeNote:
+      "These root causes are exactly what the next step fixes: the recommendation engine reads the same traces and rewrites the system prompt and tool descriptions to address them.",
+    emptyHint:
+      "Run the analysis to reveal failure patterns, user intents, and execution behavior for the baseline sessions.",
   },
   step1: {
     identityEyebrow: "Identity",
@@ -724,11 +820,11 @@ export const en: Messages = {
     levels: { SESSION: "session", TRACE: "trace", TOOL_CALL: "tool call" },
   },
   step5: {
-    spEyebrow: "Step 5a",
+    spEyebrow: "Step 6a",
     spTitle: "System prompt recommendation",
     spBtn: "Generate system-prompt recommendation",
     spBtnLive: "Generate system-prompt recommendation (real)",
-    tdEyebrow: "Step 5b",
+    tdEyebrow: "Step 6b",
     tdTitle: "Tool description recommendations",
     tdBtn: "Generate tool-description recommendations",
     tdBtnLive: "Generate tool-description recommendations (real)",
@@ -760,18 +856,18 @@ export const en: Messages = {
     continued: "Continued ✓",
   },
   step7: {
-    setupEyebrow: "Step 7a–d",
+    setupEyebrow: "Step 8a–d",
     setupTitle: "Set up gateway & A/B test",
     setupBtn: "Provision gateway + A/B test",
     setupBtnLive: "Provision gateway + A/B test (real)",
     setupDone: "A/B test LIVE",
-    trafficEyebrow: "Step 7e",
+    trafficEyebrow: "Step 8e",
     trafficTitle: "Send gateway traffic",
     sendBtn: "Send 20 gateway sessions",
     sendBtnLive: "Send 20 gateway sessions (real)",
     stickyHint:
       "Each session is assigned C or T1 by session ID and routed with the matching bundle. Assignment is sticky within a session.",
-    resultsEyebrow: "Step 7f",
+    resultsEyebrow: "Step 8f",
     resultsTitle: "A/B test results",
     monitorBtn: "Monitor results",
     monitorBtnLive: "Monitor results (real)",
@@ -779,7 +875,7 @@ export const en: Messages = {
     analysed: "analysed",
     controlLabel: "C · original prompt",
     treatmentLabel: "T1 · recommended prompt",
-    promoteEyebrow: "Step 7g",
+    promoteEyebrow: "Step 8g",
     promoteWinTitle: "Promote the winning config",
     promoteTitle: "Promote decision",
     t1Wins: "T1 wins",
@@ -830,7 +926,7 @@ export const en: Messages = {
         targetBased: "Higher — binary change",
       },
     ],
-    deployEyebrow: "Step 8a",
+    deployEyebrow: "Step 9a",
     deployTitle: "Deploy HR Assistant v2",
     deployBtn: "Deploy v2 (new tool + prompt)",
     deployBtnLive: "Deploy v2 (real — new tool + prompt)",
@@ -838,21 +934,21 @@ export const en: Messages = {
     v2Arn: "v2 runtime ARN",
     v2ToolNote: (tool) =>
       `+ ${tool} — new tool (6 total). Improved system prompt baked into the code.`,
-    canaryEyebrow: "Step 8b–d",
+    canaryEyebrow: "Step 9b–d",
     canaryTitle: "Canary A/B test",
     setupBtn: "Set up 90/10 target A/B test",
     setupBtnLive: "Set up 90/10 target A/B test (real)",
     canaryLive: "Canary LIVE",
     sendBtn: (n) => `Send ${n} target sessions`,
     sendBtnLive: (n) => `Send ${n} target sessions (real)`,
-    resultsEyebrow: "Step 8e",
+    resultsEyebrow: "Step 9e",
     resultsTitle: "Canary results — v1 vs v2",
     monitorBtn: "Monitor canary results",
     monitorBtnLive: "Monitor canary results (real)",
     resultsReady: "Results ready",
     v1Label: "v1 (Control · 90%)",
     v2Label: "v2 (Treatment · 10%)",
-    rolloutEyebrow: "Step 8f",
+    rolloutEyebrow: "Step 9f",
     rolloutTitle: "Phased rollout",
     rollout: { canary: "Canary", ramp: "Ramp", full: "Full" },
     rolloutNotes: {
@@ -984,6 +1080,7 @@ export const en: Messages = {
       datasets: "Datasets",
       evaluators: "Evaluators",
       runs: "Runs",
+      insights: "Insights",
       experiments: "Experiments",
       cleanup: "Cleanup",
     },
@@ -1095,6 +1192,50 @@ export const en: Messages = {
       emptyHistory: "No runs yet.",
       batchId: "Batch evaluation ID",
       selectRun: "Select a run to see its scores.",
+      triageBtn: "Triage with Insights →",
+    },
+    insights: {
+      newEyebrow: "New insights report",
+      newTitle: "Triage agent sessions",
+      intro:
+        "Insights analyzes agent sessions to explain WHY the agent fails and WHAT users are trying to do — failure patterns with root causes and fixes, clustered user intents, and execution-behavior summaries. It reuses the batch-evaluation API (only one batch evaluation can be active per account).",
+      pickAgent: "Agent",
+      scope: "Sessions to analyze",
+      scopes: { run: "From a past run", lookback: "Recent time window" },
+      pickRun: "Run",
+      noRuns: "No runs with recorded sessions for this agent — start one on the Runs page.",
+      lookbackLabel: "Lookback hours",
+      lookbackUnit: "hours of recent sessions",
+      pickInsights: "Analyses to run",
+      types: {
+        "Builtin.Insight.FailureAnalysis": "Failure analysis",
+        "Builtin.Insight.UserIntent": "User intent",
+        "Builtin.Insight.ExecutionSummary": "Execution summary",
+      },
+      startBtn: "Run insights analysis",
+      startedHint:
+        "The service analyzes each session with LLMs, then clusters findings across sessions — typically a few minutes for a dozen sessions.",
+      historyEyebrow: "History",
+      historyTitle: "Past reports",
+      emptyHistory: "No insight reports yet.",
+      sourceRun: "run sessions",
+      sourceLookback: "time window",
+      status: {
+        pending: "Pending",
+        analyzing: "Analyzing",
+        completed: "Completed",
+        failed: "Failed",
+      },
+      reportEyebrow: "Report",
+      resume: "Resume polling",
+      failuresTitle: "Failure patterns (categories → subcategories → root causes)",
+      noFailures: "No failure patterns detected in the analyzed sessions.",
+      recommendation: "Suggested fix",
+      sessionCount: (n) => `${n} session${n === 1 ? "" : "s"}`,
+      toExperimentsHint:
+        "Next: feed these findings into an optimization Experiment — Recommendations will generate an improved system prompt from the same traces, and an A/B test validates it.",
+      intentsTitle: "User intents (most common asks)",
+      executionTitle: "Execution patterns (how the agent solves problems)",
     },
     agentConfig: {
       eyebrow: "Configuration (read by experiments)",
@@ -1208,7 +1349,7 @@ export const zh: Messages = {
       "AgentCore 优化之旅的交互式全仿真演练 — 部署一个 HR 助手，度量它的表现，让平台自动推荐改进，再通过 A/B 测试验证优化效果。无需 AWS 账号。",
     start: "开始旅程 →",
     simulationMode: "仿真模式",
-    nineSteps: "9 个步骤",
+    nineSteps: "10 个步骤",
     statAgent: "智能体",
     statAgentValue: "HR 助手",
     statEvaluators: "内置评估器",
@@ -1223,6 +1364,7 @@ export const zh: Messages = {
       ["部署", "将 HR 助手发布到 AgentCore Runtime"],
       ["基线", "发送代表性流量，采集追踪数据"],
       ["评估", "为目标达成率、有用性、正确性打分"],
+      ["触诊", "洞察解释会话为何失败、用户想要什么"],
       ["推荐", "自动改进系统提示词与工具描述"],
       ["A/B 测试", "在全量上线前用数据证明改进有效"],
     ],
@@ -1303,6 +1445,11 @@ export const zh: Messages = {
       shortTitle: "评估",
       lede: "批量评估会从 CloudWatch 中发现你刚发送的会话，用内置 LLM 评估器逐一评分并返回聚合分数。这些分数就是接下来 A/B 测试要挑战的基线。",
     },
+    insights: {
+      title: "失败洞察",
+      shortTitle: "洞察",
+      lede: "分数只告诉你智能体\"表现不佳\"——洞察告诉你\"为什么\"。同一个批量评估 API,传入 insights 而非 evaluators,即可对每个会话做触诊:失败模式(含根因与修复建议)、用户意图、执行行为。这些发现将喂给下一步的推荐。",
+    },
     recommend: {
       title: "优化建议",
       shortTitle: "推荐",
@@ -1328,6 +1475,33 @@ export const zh: Messages = {
       shortTitle: "清理",
       lede: "拆除本次旅程创建的所有资源。每个类别独立删除，即使部分运行失败也能尽量清理。",
     },
+  },
+  stepInsights: {
+    runEyebrow: "触诊",
+    runTitle: "运行洞察分析",
+    startBtn: "运行洞察分析",
+    analyzed: "已分析",
+    runHint: (sessions) =>
+      `用 LLM 触诊 ${sessions} 个基线会话,再跨会话聚类出失败模式、用户意图与行为模式。`,
+    typesEyebrow: "洞察类型",
+    typesTitle: "三种分析",
+    typeFailure: "失败类别 → 子类 → 根因,每条根因附修复建议。",
+    typeIntent: "用户想完成什么,按频率聚类排序。",
+    typeExecution: "智能体如何处理每个会话,结果如何。",
+    exclusiveNote:
+      "start_batch_evaluation 中 insights= 与 evaluators= 互斥 — 触诊与评分是两个独立作业,且每个账号同时只能有一个活跃的批量评估。",
+    resultsEyebrow: "发现",
+    resultsTitle: "触诊报告",
+    failureBadge: (n) => `${n} 个会话存在失败`,
+    failuresTitle: "失败模式(类别 → 子类 → 根因)",
+    recommendation: "修复建议",
+    sessionCount: (n) => `${n} 个会话`,
+    intentsTitle: "用户意图(最常见的诉求)",
+    executionTitle: "执行模式(智能体如何解决问题)",
+    continueBtn: "继续,查看优化建议 →",
+    bridgeNote:
+      "这些根因正是下一步要修复的:推荐引擎读取同一批 trace,重写 system prompt 和工具描述来针对性解决。",
+    emptyHint: "运行分析后,这里会显示基线会话的失败模式、用户意图与执行行为。",
   },
   step1: {
     identityEyebrow: "身份",
@@ -1401,11 +1575,11 @@ export const zh: Messages = {
     levels: { SESSION: "会话级", TRACE: "轨迹级", TOOL_CALL: "工具调用级" },
   },
   step5: {
-    spEyebrow: "步骤 5a",
+    spEyebrow: "步骤 6a",
     spTitle: "系统提示词推荐",
     spBtn: "生成系统提示词推荐",
     spBtnLive: "生成系统提示词推荐（真实）",
-    tdEyebrow: "步骤 5b",
+    tdEyebrow: "步骤 6b",
     tdTitle: "工具描述推荐",
     tdBtn: "生成工具描述推荐",
     tdBtnLive: "生成工具描述推荐（真实）",
@@ -1436,18 +1610,18 @@ export const zh: Messages = {
     continued: "已继续 ✓",
   },
   step7: {
-    setupEyebrow: "步骤 7a–d",
+    setupEyebrow: "步骤 8a–d",
     setupTitle: "搭建网关与 A/B 测试",
     setupBtn: "创建网关 + A/B 测试",
     setupBtnLive: "创建网关 + A/B 测试（真实）",
     setupDone: "A/B 测试运行中",
-    trafficEyebrow: "步骤 7e",
+    trafficEyebrow: "步骤 8e",
     trafficTitle: "发送网关流量",
     sendBtn: "发送 20 个网关会话",
     sendBtnLive: "发送 20 个网关会话（真实）",
     stickyHint:
       "每个会话按会话 ID 被分配到 C 或 T1，并以对应的配置包路由。同一会话内分配保持粘性。",
-    resultsEyebrow: "步骤 7f",
+    resultsEyebrow: "步骤 8f",
     resultsTitle: "A/B 测试结果",
     monitorBtn: "监控结果",
     monitorBtnLive: "监控结果（真实）",
@@ -1455,7 +1629,7 @@ export const zh: Messages = {
     analysed: "已分析",
     controlLabel: "C · 原始提示词",
     treatmentLabel: "T1 · 推荐提示词",
-    promoteEyebrow: "步骤 7g",
+    promoteEyebrow: "步骤 8g",
     promoteWinTitle: "提升胜出配置",
     promoteTitle: "提升决策",
     t1Wins: "T1 胜出",
@@ -1505,28 +1679,28 @@ export const zh: Messages = {
         targetBased: "较高 — 二元切换",
       },
     ],
-    deployEyebrow: "步骤 8a",
+    deployEyebrow: "步骤 9a",
     deployTitle: "部署 HR 助手 v2",
     deployBtn: "部署 v2（新工具 + 提示词）",
     deployBtnLive: "部署 v2（真实 — 新工具 + 提示词）",
     deployed: "v2 已部署",
     v2Arn: "v2 运行时 ARN",
     v2ToolNote: (tool) => `+ ${tool} — 新工具（共 6 个）。改进的系统提示词已内置到代码中。`,
-    canaryEyebrow: "步骤 8b–d",
+    canaryEyebrow: "步骤 9b–d",
     canaryTitle: "金丝雀 A/B 测试",
     setupBtn: "创建 90/10 目标 A/B 测试",
     setupBtnLive: "创建 90/10 目标 A/B 测试（真实）",
     canaryLive: "金丝雀运行中",
     sendBtn: (n) => `发送 ${n} 个目标会话`,
     sendBtnLive: (n) => `发送 ${n} 个目标会话（真实）`,
-    resultsEyebrow: "步骤 8e",
+    resultsEyebrow: "步骤 9e",
     resultsTitle: "金丝雀结果 — v1 vs v2",
     monitorBtn: "监控金丝雀结果",
     monitorBtnLive: "监控金丝雀结果（真实）",
     resultsReady: "结果就绪",
     v1Label: "v1（对照 · 90%）",
     v2Label: "v2（实验 · 10%）",
-    rolloutEyebrow: "步骤 8f",
+    rolloutEyebrow: "步骤 9f",
     rolloutTitle: "分阶段放量",
     rollout: { canary: "金丝雀", ramp: "放量", full: "全量" },
     rolloutNotes: {
@@ -1646,6 +1820,7 @@ export const zh: Messages = {
       datasets: "数据集",
       evaluators: "评估器",
       runs: "评估运行",
+      insights: "洞察",
       experiments: "优化实验",
       cleanup: "资源清理",
     },
@@ -1757,6 +1932,50 @@ export const zh: Messages = {
       emptyHistory: "还没有运行记录。",
       batchId: "批量评估 ID",
       selectRun: "选择一条运行记录查看评分。",
+      triageBtn: "用洞察触诊 →",
+    },
+    insights: {
+      newEyebrow: "新建洞察报告",
+      newTitle: "触诊 Agent 会话",
+      intro:
+        "洞察(Insights)分析 Agent 会话,回答\"为什么失败\"和\"用户想做什么\"——失败模式(含根因与修复建议)、用户意图聚类、执行行为摘要。复用批量评估 API(每个账号同时只能有一个活跃的批量评估)。",
+      pickAgent: "Agent",
+      scope: "分析哪些会话",
+      scopes: { run: "来自历史运行", lookback: "最近时间窗口" },
+      pickRun: "运行记录",
+      noRuns: "该 Agent 没有带会话记录的运行 — 请先在评估运行页跑一次。",
+      lookbackLabel: "回看小时数",
+      lookbackUnit: "小时内的会话",
+      pickInsights: "分析类型",
+      types: {
+        "Builtin.Insight.FailureAnalysis": "失败分析",
+        "Builtin.Insight.UserIntent": "用户意图",
+        "Builtin.Insight.ExecutionSummary": "执行摘要",
+      },
+      startBtn: "运行洞察分析",
+      startedHint:
+        "服务用 LLM 逐会话分析,再跨会话聚类 — 十余个会话通常需要几分钟。",
+      historyEyebrow: "历史记录",
+      historyTitle: "历史报告",
+      emptyHistory: "还没有洞察报告。",
+      sourceRun: "运行会话",
+      sourceLookback: "时间窗口",
+      status: {
+        pending: "等待中",
+        analyzing: "分析中",
+        completed: "已完成",
+        failed: "失败",
+      },
+      reportEyebrow: "报告",
+      resume: "恢复轮询",
+      failuresTitle: "失败模式(类别 → 子类 → 根因)",
+      noFailures: "所分析的会话中未发现失败模式。",
+      recommendation: "修复建议",
+      sessionCount: (n) => `${n} 个会话`,
+      toExperimentsHint:
+        "下一步:把这些发现带进优化实验 — 推荐(Recommendations)会基于同一批 trace 生成改进的 system prompt,再用 A/B 测试验证。",
+      intentsTitle: "用户意图(最常见的诉求)",
+      executionTitle: "执行模式(Agent 如何解决问题)",
     },
     agentConfig: {
       eyebrow: "配置(实验读取)",

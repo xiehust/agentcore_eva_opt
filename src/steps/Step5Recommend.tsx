@@ -88,7 +88,7 @@ export function Step5Recommend() {
 
   return (
     <div>
-      <StepHeader index={5} title={t.steps.recommend.title} lede={t.steps.recommend.lede} />
+      <StepHeader index={6} title={t.steps.recommend.title} lede={t.steps.recommend.lede} />
 
       <div className="space-y-6">
         {/* 5a — system prompt */}

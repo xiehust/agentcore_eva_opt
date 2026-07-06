@@ -214,6 +214,7 @@ export function RunsPage() {
 
 function RunDetail({ run }: { run: RunRecord }) {
   const { t } = useLang();
+  const { dispatch } = useConsole();
   return (
     <div className="mt-4 border-t border-line/60 pt-4">
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1">
@@ -226,6 +227,23 @@ function RunDetail({ run }: { run: RunRecord }) {
         {run.batchEvaluationId && (
           <span className="font-mono text-[11px] text-fog-500">
             {t.console.runs.batchId}: {run.batchEvaluationId}
+          </span>
+        )}
+        {(run.sessionIds?.length ?? 0) > 0 && (
+          <span className="ml-auto">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                dispatch({
+                  type: "START_INSIGHTS_WITH",
+                  agentId: run.agentId,
+                  runId: run.id,
+                })
+              }
+            >
+              {t.console.runs.triageBtn}
+            </Button>
           </span>
         )}
       </div>

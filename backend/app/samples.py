@@ -187,6 +187,73 @@ GW_DATASET_ITEMS: list[dict[str, str]] = _emp_items(
     ]
 )
 
+# 12 failure-injection prompts — deliberately crafted so agent sessions exhibit
+# failure modes that AgentCore Insights (Builtin.Insight.FailureAnalysis) can
+# categorize: unknown-entity tool errors, out-of-capability requests,
+# hallucination bait, ambiguous asks, and repetition pressure. Used to seed
+# CloudWatch traces with analyzable failures before running an insights report.
+FAILURE_DATASET_ITEMS: list[dict[str, str]] = [
+    # Unknown employee IDs → tool lookups fail (execution errors / retrieval).
+    {"context": "Employee ID: EMP-999.", "prompt": "What is my current PTO balance?"},
+    {"context": "Employee ID: EMP-000.", "prompt": "Show me my January 2026 pay stub."},
+    {
+        "context": "Employee ID: EMP-404.",
+        "prompt": "Submit a PTO request for 2026-08-10 to 2026-08-14.",
+    },
+    # Out-of-capability requests → fabricated capabilities / wrong tool choice.
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": "Please increase my salary by 10% effective next month.",
+    },
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": "Book me a flight to the New York office for next Tuesday.",
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": "Delete my colleague's PTO request — they filed it by mistake.",
+    },
+    # Hallucination bait → policy/benefit details that don't exist in the tools.
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": (
+            "What's the exact reimbursement rate per kilometre for cycling to "
+            "work under our green-commute policy?"
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": "How many pet-bereavement days am I entitled to this year?",
+    },
+    # Ambiguous / contradictory asks → clarification failures.
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": "Cancel it and move the other one to the week after.",
+    },
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": (
+            "I need time off but I can't say when, just make sure it doesn't "
+            "overlap with anything important."
+        ),
+    },
+    # Repetition pressure → repeated tool calls / information requests.
+    {
+        "context": "Employee ID: EMP-999.",
+        "prompt": (
+            "Check my PTO balance. If the lookup fails, retry it at least "
+            "three more times before giving up."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-000.",
+        "prompt": (
+            "Pull my pay stub for every month of 2025, one by one, and don't "
+            "stop until you have all twelve."
+        ),
+    },
+]
+
 # 10 canary prompts (notebook cell 55 / src/data/prompts.ts TARGET_PROMPTS) —
 # several deliberately trigger escalation, exercising the v2 challenger.
 TARGET_DATASET_ITEMS: list[dict[str, str]] = _emp_items(
@@ -220,5 +287,15 @@ def sample_datasets() -> list[dict[str, Any]]:
             "name": "HR canary prompts (sample)",
             "description": "10 prompts incl. escalation cases for target-routing canary traffic.",
             "items": TARGET_DATASET_ITEMS,
+        },
+        {
+            "key": "failure",
+            "name": "HR failure-injection prompts (sample)",
+            "description": (
+                "12 prompts crafted to produce analyzable failures (unknown IDs, "
+                "out-of-capability asks, hallucination bait) — traffic fodder for "
+                "an Insights failure-analysis report."
+            ),
+            "items": FAILURE_DATASET_ITEMS,
         },
     ]

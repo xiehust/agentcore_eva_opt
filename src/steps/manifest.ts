@@ -4,6 +4,7 @@ import { Step1Config } from "./Step1Config";
 import { Step2Deploy } from "./Step2Deploy";
 import { Step3Baseline } from "./Step3Baseline";
 import { Step4Eval } from "./Step4Eval";
+import { Step5Insights } from "./Step5Insights";
 import { Step5Recommend } from "./Step5Recommend";
 import { Step6Bundles } from "./Step6Bundles";
 import { Step7BundleAB } from "./Step7BundleAB";
@@ -18,17 +19,18 @@ export interface StepDef {
   component: ComponentType;
 }
 
-/** Ordered 9-step manifest mirroring the notebook Steps 1–9. */
+/** Ordered 10-step manifest: notebook Steps 1–9 + Insights triage at 5. */
 export const STEPS: StepDef[] = [
   { key: "config", index: 1, title: "Configuration", shortTitle: "Configure", component: Step1Config },
   { key: "deploy", index: 2, title: "Deploy HR Assistant v1", shortTitle: "Deploy v1", component: Step2Deploy },
   { key: "baseline", index: 3, title: "Baseline Bundle & Traffic", shortTitle: "Baseline", component: Step3Baseline },
   { key: "eval", index: 4, title: "Baseline Batch Evaluation", shortTitle: "Evaluate", component: Step4Eval },
-  { key: "recommend", index: 5, title: "Optimization Recommendations", shortTitle: "Recommend", component: Step5Recommend },
-  { key: "bundles", index: 6, title: "Configuration Bundles", shortTitle: "Bundles", component: Step6Bundles },
-  { key: "bundleAB", index: 7, title: "A/B Test — Config Bundle Routing", shortTitle: "Bundle A/B", component: Step7BundleAB },
-  { key: "targetAB", index: 8, title: "A/B Test — Target-Based Routing", shortTitle: "Target A/B", component: Step8TargetAB },
-  { key: "cleanup", index: 9, title: "Cleanup", shortTitle: "Cleanup", component: Step9Cleanup },
+  { key: "insights", index: 5, title: "Failure Insights", shortTitle: "Insights", component: Step5Insights },
+  { key: "recommend", index: 6, title: "Optimization Recommendations", shortTitle: "Recommend", component: Step5Recommend },
+  { key: "bundles", index: 7, title: "Configuration Bundles", shortTitle: "Bundles", component: Step6Bundles },
+  { key: "bundleAB", index: 8, title: "A/B Test — Config Bundle Routing", shortTitle: "Bundle A/B", component: Step7BundleAB },
+  { key: "targetAB", index: 9, title: "A/B Test — Target-Based Routing", shortTitle: "Target A/B", component: Step8TargetAB },
+  { key: "cleanup", index: 10, title: "Cleanup", shortTitle: "Cleanup", component: Step9Cleanup },
 ];
 
 export function getStep(key: StepKey): StepDef {
