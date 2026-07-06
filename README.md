@@ -95,7 +95,10 @@ via **"Open Live console"**). It has seven sections:
 - **Datasets** — evaluation datasets as `{prompt, context?}` items, where
   `context` is an optional prefix prepended at send time (generalizing the HR
   sample's `Employee ID: EMP-001.` convention). Edit in a table, or upload
-  JSON / JSONL. The 10 notebook baseline prompts ship as a sample.
+  JSON / JSONL. All four sample prompt sets (baseline / gateway A/B / canary /
+  failure-injection) ship in **English and Chinese** variants — the Chinese
+  sets mirror the English scenarios 1:1 (the `Employee ID:` context prefix
+  stays in English; the agent's system prompt keys on it).
 - **Evaluators** — the 13 built-in AgentCore evaluators plus create/delete of
   custom LLM-as-a-judge evaluators (instructions + rating scale + judge model).
 - **Runs** — pick a deployed agent + dataset + evaluators, then one click sends
@@ -109,9 +112,13 @@ via **"Open Live console"**). It has seven sections:
   from a run's detail: *"Triage with Insights"*) or a recent time window.
   Insights reuse the batch-evaluation API — `insights` instead of `evaluators`
   (mutually exclusive; one active batch evaluation per account). A built-in
-  **failure-injection prompt set** (unknown employee IDs, out-of-capability
-  asks, hallucination bait) ships as a sample dataset to make failure patterns
-  reproducible. Report history is persisted server-side.
+  **failure-injection prompt set** (24 prompts) ships as a sample dataset to
+  make failure patterns reproducible — it targets the behavioral defects the
+  analyzer actually flags (fabricated verification claims, proceeding on
+  missing info, compliance shortcuts) alongside unknown-ID tool errors and
+  hallucination bait; note that graceful degradation on a failed lookup is
+  classified as an execution pattern, not a failure. Report history is
+  persisted server-side.
 - **Experiments** — the guided optimization flow, generalized from the wizard's
   steps 5–8: AI **recommendations** (system prompt + tool descriptions, from
   the agent's recent traces) → **control/treatment config bundles** → gateway

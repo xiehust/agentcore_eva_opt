@@ -54,7 +54,8 @@ if [[ "$MODE" == "prod" ]]; then
     chmod 600 "$PASS_FILE"
     echo "generated access password → $PASS_FILE"
   fi
-  export LAB4_AUTH_PASSWORD="$(cat "$PASS_FILE")"
+  # First line only — the file may carry human notes below the password.
+  export LAB4_AUTH_PASSWORD="$(head -n 1 "$PASS_FILE")"
   HOST_ARGS=(--host 0.0.0.0)
 fi
 

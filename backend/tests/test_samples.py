@@ -53,16 +53,36 @@ def test_sample_datasets_list() -> None:
     assert resp.status_code == 200
     datasets = resp.json()["datasets"]
     by_key = {d["key"]: d for d in datasets}
-    assert set(by_key) == {"baseline", "gateway", "target", "failure"}
-    assert len(by_key["baseline"]["items"]) == 10
-    assert len(by_key["gateway"]["items"]) == 20
-    assert len(by_key["target"]["items"]) == 10
-    assert len(by_key["failure"]["items"]) == 12
+    assert set(by_key) == {
+        "baseline",
+        "gateway",
+        "target",
+        "failure",
+        "baseline-zh",
+        "gateway-zh",
+        "target-zh",
+        "failure-zh",
+    }
+    # Chinese variants mirror the English sets 1:1 in size.
+    for key, n in [("baseline", 10), ("gateway", 20), ("target", 10), ("failure", 24)]:
+        assert len(by_key[key]["items"]) == n
+        assert len(by_key[f"{key}-zh"]["items"]) == n
     for d in datasets:
         for item in d["items"]:
             assert item["prompt"]
             if "context" in item:
+                # Context keeps the English prefix in BOTH variants — the HR
+                # agent's system prompt keys on "Employee ID:" to extract ids.
                 assert re.fullmatch(r"Employee ID: EMP-\d{3}\.", item["context"])
+    # The failure sets deliberately include one prompt with NO context at all
+    # (missing-identity bait — the agent should ask, not assume).
+    assert any("context" not in i for i in by_key["failure"]["items"])
+    assert any("context" not in i for i in by_key["failure-zh"]["items"])
+    # zh prompts are actually Chinese.
+    assert any(
+        "一" <= ch <= "鿿"
+        for ch in by_key["failure-zh"]["items"][0]["prompt"]
+    )
 
 
 def test_sample_dataset_shape() -> None:

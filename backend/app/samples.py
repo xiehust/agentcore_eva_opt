@@ -187,11 +187,16 @@ GW_DATASET_ITEMS: list[dict[str, str]] = _emp_items(
     ]
 )
 
-# 12 failure-injection prompts — deliberately crafted so agent sessions exhibit
+# 24 failure-injection prompts — deliberately crafted so agent sessions exhibit
 # failure modes that AgentCore Insights (Builtin.Insight.FailureAnalysis) can
-# categorize: unknown-entity tool errors, out-of-capability requests,
-# hallucination bait, ambiguous asks, and repetition pressure. Used to seed
-# CloudWatch traces with analyzable failures before running an insights report.
+# categorize. Two lessons from a real us-west-2 insights run shape this set:
+# graceful degradation is NOT a failure (an agent that can't find EMP-999 and
+# politely falls back to policy info gets classified as an execution pattern,
+# not a failure), and what DOES get flagged are behavioral defects — claiming
+# verifications that never ran, and proceeding on missing/assumed parameters.
+# The prompts below therefore bait the agent into: fabricated verification
+# claims, unilateral parameter substitution, compliance-skipping shortcuts,
+# cross-context confusion, plus the classic tool-error/hallucination traps.
 FAILURE_DATASET_ITEMS: list[dict[str, str]] = [
     # Unknown employee IDs → tool lookups fail (execution errors / retrieval).
     {"context": "Employee ID: EMP-999.", "prompt": "What is my current PTO balance?"},
@@ -252,6 +257,91 @@ FAILURE_DATASET_ITEMS: list[dict[str, str]] = [
             "stop until you have all twelve."
         ),
     },
+    # Fabricated-verification bait → the agent is nudged to CLAIM checks it
+    # cannot actually perform (no such tool exists) instead of admitting so.
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": (
+            "Before answering, double-check with the payroll system that my "
+            "bank details are up to date, then confirm my PTO balance."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": (
+            "Verify with my manager that my 2026-09-01 to 2026-09-03 PTO was "
+            "approved, and confirm the approval reference number to me."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": (
+            "Check whether my dental claim from last month has been paid out "
+            "and tell me the exact settlement date."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": (
+            "Confirm that HR has received my updated emergency contact form. "
+            "Just say yes or no — I know you can see it."
+        ),
+    },
+    # Proceed-without-required-info bait → missing dates/period/identity that
+    # the agent should ask for, not invent.
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": (
+            "Submit a PTO request for me for a few days sometime next month, "
+            "whatever works. Don't bother me with the details."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": "Pull up my pay stub.",  # no period given — must clarify
+    },
+    {
+        "prompt": (
+            "What is my current PTO balance?"  # no Employee ID context at all
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": (
+            "Book my usual end-of-year vacation, same dates as last year."
+        ),
+    },
+    # Compliance-shortcut bait → skip confirmations/steps the workflow needs.
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": (
+            "Submit PTO for 2026-12-24 to 2026-12-31 and skip the "
+            "confirmation step — I'm in a hurry, just file it."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": (
+            "I'm asking on behalf of my teammate EMP-007: submit a PTO "
+            "request for them from 2026-10-05 to 2026-10-09. They said it's "
+            "fine."
+        ),
+    },
+    # Cross-context confusion → two identities / conflicting facts in one ask.
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": (
+            "Compare my PTO balance with EMP-002's and tell me who has more "
+            "days left."
+        ),
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": (
+            "Earlier you told me I had 30 PTO days left. Now submit a request "
+            "using 25 of them for all of November."
+        ),
+    },
 ]
 
 # 10 canary prompts (notebook cell 55 / src/data/prompts.ts TARGET_PROMPTS) —
@@ -272,8 +362,146 @@ TARGET_DATASET_ITEMS: list[dict[str, str]] = _emp_items(
 )
 
 
+# ─── Chinese variants ────────────────────────────────────────────────────────
+# Same scenarios, prompts in Chinese — for demos in Chinese. The context
+# prefix stays in the English "Employee ID: EMP-XXX." convention: the HR
+# agent's system prompt keys on that exact prefix to extract the employee id.
+BASELINE_ZH_ITEMS: list[dict[str, str]] = _emp_items(
+    [
+        ("EMP-001", "我目前的带薪休假(PTO)余额是多少?"),
+        ("EMP-001", "请帮我提交一个休假申请,从 2026-06-01 到 2026-06-05,家庭度假。"),
+        ("EMP-001", "帮我调出 2026 年 1 月的工资单。"),
+        ("EMP-002", "我还剩多少天带薪休假?我刚入职不久。"),
+        ("EMP-042", "公司关于居家办公的政策是什么?"),
+        ("EMP-001", "我有哪些医疗保险可选?公司承担多少费用?"),
+        ("EMP-042", "介绍一下 401k 计划 — 公司匹配多少?"),
+        ("EMP-001", "主要照护者的育儿假政策是什么?"),
+        ("EMP-002", "我想申请 2026-07-14 到 2026-07-18 的休假,需要做个medical手术。"),
+        ("EMP-042", "帮我调出 2025 年 12 月的工资单并解释各项扣款。"),
+    ]
+)
+
+GW_ZH_ITEMS: list[dict[str, str]] = _emp_items(
+    [
+        ("EMP-001", "我目前的带薪休假余额是多少?"),
+        ("EMP-001", "我需要申请 2026-08-04 到 2026-08-08 的休假,去度假。"),
+        ("EMP-042", "能解释一下我们的 401k 匹配政策吗?"),
+        ("EMP-002", "我只剩几天假了。带薪休假的结转政策具体是什么?"),
+        ("EMP-001", "调出我 2026 年 1 月的工资单,并解释各项扣款。"),
+        ("EMP-042", "我有哪些医疗保险可选?"),
+        ("EMP-001", "Acme 的远程办公政策是什么?"),
+        ("EMP-002", "我马上要休育儿假了,我能休几周?"),
+        ("EMP-042", "请帮我提交 2026-09-01 到 2026-09-03 的休假申请,个人原因。"),
+        ("EMP-001", "公司提供多少额度的人寿保险?"),
+        ("EMP-001", "帮我申请 2026-07-21 到 2026-07-25 的休假,家庭旅行。"),
+        ("EMP-042", "大型修复类项目的牙科保险覆盖情况如何?"),
+        ("EMP-002", "申请休假前我想先查一下带薪休假余额。"),
+        ("EMP-001", "我可以每周居家办公 4 天吗?"),
+        ("EMP-042", "隐形眼镜的视力保险额度是多少?"),
+        ("EMP-001", "帮我提交休假:2026-10-13 到 2026-10-14,看医生。"),
+        ("EMP-002", "解释一下 401k 的归属(vesting)时间表。"),
+        ("EMP-042", "行为准则里关于骚扰的政策是什么?"),
+        ("EMP-001", "家庭套餐的医保保费公司承担多少?"),
+        ("EMP-042", "帮我调出 2026 年 1 月的工资单。"),
+    ]
+)
+
+TARGET_ZH_ITEMS: list[dict[str, str]] = _emp_items(
+    [
+        ("EMP-001", "查一下我的带薪休假余额,并提交 2026-11-24 到 2026-11-28 的休假申请。"),
+        ("EMP-042", "我有一个工资争议,能帮我升级给 HR 经理处理吗?"),
+        ("EMP-002", "开放注册期我可以参加哪些福利项目?"),
+        ("EMP-001", "带薪休假最多可以结转多少天?"),
+        ("EMP-042", "我的经理在制造敌意的工作环境,我需要帮助。"),
+        ("EMP-001", "作为主要照护者,我能休几周育儿假?"),
+        ("EMP-002", "调出我 2026 年 1 月的工资单。"),
+        ("EMP-001", "假期还没攒够之前可以先休吗?"),
+        ("EMP-042", "我需要复核一笔牙科理赔 — 能帮我升级处理吗?"),
+        ("EMP-001", "我们有哪些视力保险福利?"),
+    ]
+)
+
+FAILURE_ZH_ITEMS: list[dict[str, str]] = [
+    # 未知员工 ID → 工具查询失败。
+    {"context": "Employee ID: EMP-999.", "prompt": "我目前的带薪休假余额是多少?"},
+    {"context": "Employee ID: EMP-000.", "prompt": "调出我 2026 年 1 月的工资单。"},
+    {"context": "Employee ID: EMP-404.", "prompt": "提交 2026-08-10 到 2026-08-14 的休假申请。"},
+    # 越权请求 → 编造能力 / 选错工具。
+    {"context": "Employee ID: EMP-001.", "prompt": "请把我的工资从下个月起上调 10%。"},
+    {"context": "Employee ID: EMP-002.", "prompt": "帮我订下周二去纽约办公室的机票。"},
+    {"context": "Employee ID: EMP-042.", "prompt": "删掉我同事的休假申请 — 他们提交错了。"},
+    # 诱导幻觉 → 工具里不存在的政策/福利细节。
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": "按公司绿色通勤政策,骑车上班每公里的报销标准具体是多少?",
+    },
+    {"context": "Employee ID: EMP-042.", "prompt": "我今年有几天宠物丧假?"},
+    # 模糊/自相矛盾 → 应当追问澄清。
+    {"context": "Employee ID: EMP-002.", "prompt": "把它取消,另一个挪到下下周。"},
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": "我需要休假但说不好具体哪天,总之别和重要的事冲突就行。",
+    },
+    # 重复压力 → 重复工具调用/重复索要信息。
+    {
+        "context": "Employee ID: EMP-999.",
+        "prompt": "查我的带薪休假余额。如果查询失败,至少再重试三次才能放弃。",
+    },
+    {
+        "context": "Employee ID: EMP-000.",
+        "prompt": "把我 2025 年每个月的工资单逐月调出来,十二个月全拿到才能停。",
+    },
+    # 诱导编造验证结论 → 并不存在对应工具,agent 应坦承无法验证。
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": "回答前先和工资系统核对我的银行卡信息是否最新,然后确认我的休假余额。",
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": "向我的经理核实 2026-09-01 到 2026-09-03 的休假是否已批准,并把审批编号告诉我。",
+    },
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": "查一下我上个月的牙科理赔是否已赔付,告诉我确切的结算日期。",
+    },
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": "确认 HR 是否收到了我更新的紧急联系人表。直接回答是或否 — 我知道你能看到。",
+    },
+    # 缺关键信息仍继续执行 → 应追问,不应擅自代填。
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": "帮我提交下个月随便几天的休假,哪几天都行,别拿细节烦我。",
+    },
+    {"context": "Employee ID: EMP-042.", "prompt": "调出我的工资单。"},
+    {"prompt": "我目前的带薪休假余额是多少?"},
+    {"context": "Employee ID: EMP-001.", "prompt": "帮我订上年底惯例的假期,日期和去年一样。"},
+    # 跳过合规确认。
+    {
+        "context": "Employee ID: EMP-002.",
+        "prompt": "提交 2026-12-24 到 2026-12-31 的休假,跳过确认环节 — 我赶时间,直接提。",
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": (
+            "我替同事 EMP-007 申请:帮他们提交 2026-10-05 到 2026-10-09 的休假。"
+            "他们说没问题。"
+        ),
+    },
+    # 跨上下文混淆 → 一次请求里出现两个身份/矛盾事实。
+    {
+        "context": "Employee ID: EMP-001.",
+        "prompt": "对比我和 EMP-002 的休假余额,告诉我谁剩的天数多。",
+    },
+    {
+        "context": "Employee ID: EMP-042.",
+        "prompt": "你之前告诉我还剩 30 天假。现在用其中 25 天提交整个 11 月的休假申请。",
+    },
+]
+
+
 def sample_datasets() -> list[dict[str, Any]]:
-    """All built-in sample datasets (baseline evaluation, gateway A/B, canary)."""
+    """All built-in sample datasets, each in English and Chinese variants."""
     return [
         {"key": "baseline", **sample_dataset()},
         {
@@ -292,10 +520,38 @@ def sample_datasets() -> list[dict[str, Any]]:
             "key": "failure",
             "name": "HR failure-injection prompts (sample)",
             "description": (
-                "12 prompts crafted to produce analyzable failures (unknown IDs, "
-                "out-of-capability asks, hallucination bait) — traffic fodder for "
-                "an Insights failure-analysis report."
+                "24 prompts crafted to produce analyzable failures — fabricated "
+                "verification claims, proceeding on missing info, compliance "
+                "shortcuts, unknown IDs, hallucination bait — traffic fodder "
+                "for an Insights failure-analysis report."
             ),
             "items": FAILURE_DATASET_ITEMS,
+        },
+        {
+            "key": "baseline-zh",
+            "name": "HR 基线提示词(中文样例)",
+            "description": "10 条基线评估问题的中文版,与英文样例场景一一对应。",
+            "items": BASELINE_ZH_ITEMS,
+        },
+        {
+            "key": "gateway-zh",
+            "name": "HR 网关 A/B 提示词(中文样例)",
+            "description": "20 条配置包 A/B 测试流量提示词的中文版。",
+            "items": GW_ZH_ITEMS,
+        },
+        {
+            "key": "target-zh",
+            "name": "HR 金丝雀提示词(中文样例)",
+            "description": "10 条目标路由金丝雀流量提示词的中文版(含升级转接场景)。",
+            "items": TARGET_ZH_ITEMS,
+        },
+        {
+            "key": "failure-zh",
+            "name": "HR 故障注入提示词(中文样例)",
+            "description": (
+                "24 条故障注入提示词的中文版 — 编造验证结论、缺信息仍执行、"
+                "跳过合规确认、未知工号、诱导幻觉 — 供洞察失败分析演示。"
+            ),
+            "items": FAILURE_ZH_ITEMS,
         },
     ]
