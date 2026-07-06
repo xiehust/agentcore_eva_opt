@@ -1,0 +1,13 @@
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+# Never commit deployed-agent state (may contain account-specific ARNs)
+agent_state_*.json
+# Local SQLite persistence (live-demo progress) — machine-local, not committed
+data/
+*.db
+*.db-wal
+*.db-shm

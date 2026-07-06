@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+*.local
+.DS_Store
+.vite
+.supergoal/
+.claude/
+sample-open-weight-models-with-amazon-bedrock/
