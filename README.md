@@ -1,5 +1,7 @@
 # AgentCore Optimization · Interactive (Lab 4)
 
+**English** · [中文](./README.zh-CN.md)
+
 An interactive rebuild of the AWS Bedrock AgentCore "Lab 4 — Agent Optimization"
 notebook. It walks through the complete optimization journey for an **HR
 Assistant** agent — deploy → baseline traffic → batch evaluation → **failure
@@ -19,7 +21,7 @@ It runs in **two modes**, switchable from the header toggle:
 ```mermaid
 flowchart LR
     subgraph Browser["Browser — React 18 + Vite"]
-        SIM["Simulation wizard<br/>(9 steps, no AWS)"]
+        SIM["Simulation wizard<br/>(10 steps, no AWS)"]
         CONSOLE["Live console<br/>Agents · Datasets · Evaluators<br/>Runs · Insights · Experiments · Cleanup"]
     end
 
