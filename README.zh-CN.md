@@ -69,14 +69,15 @@ AWS 操作都以后台任务运行,通过 `GET /api/jobs/{id}` 轮询。
 
 | | |
 |---|---|
-| ![首页](docs/screenshots/landing.png) | ![评估运行](docs/screenshots/console-runs.png) |
+| ![首页](docs/screenshots/zh/landing.png) | ![评估运行](docs/screenshots/zh/console-runs.png) |
 | **首页** — 选择仿真向导或 Live 控制台 | **评估运行** — 选 agent + 数据集 + 评估器;真实批量评估分数 |
-| ![实验 A/B](docs/screenshots/console-experiment-ab.png) | ![Agent 编辑器](docs/screenshots/console-agent-editor.png) |
+| ![实验 A/B](docs/screenshots/zh/console-experiment-ab.png) | ![Agent 编辑器](docs/screenshots/zh/console-agent-editor.png) |
 | **优化实验** — 配置包 A/B 结果:显著性 + 结论 + 提升 | **Agent 编辑器** — CodeMirror 代码、pip 依赖、提示词/工具配置 |
-| ![仿真洞察](docs/screenshots/sim-insights.png) | ![Live 洞察](docs/screenshots/console-insights.png) |
+| ![仿真洞察](docs/screenshots/zh/sim-insights.png) | ![Live 洞察](docs/screenshots/zh/console-insights.png) |
 | **仿真第 5 步 — 失败洞察** — 模拟触诊:失败树 + 意图 | **洞察(Live)** — 真实失败分析 / 意图 / 执行模式 |
 
-*(截图均来自对 AWS us-west-2 的真实端到端运行。)*
+*(中文界面截图;评估分数、A/B 指标与洞察报告均来自对 AWS us-west-2
+的真实端到端运行。)*
 
 ## Live 控制台
 
