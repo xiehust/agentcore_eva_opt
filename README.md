@@ -92,13 +92,8 @@ npm run dev      # http://localhost:5173 — starts in Simulation mode
 Live mode needs the backend running so the browser can reach `/api` (Vite
 proxies `/api` → `http://localhost:8787`).
 
-The backend reads the HR sample agent and the legacy wizard deployer from the
-AWS sample repo at runtime — clone it into the project root first (it is not
-committed here):
-
-```bash
-git clone https://github.com/aws-samples/sample-open-weight-models-with-amazon-bedrock.git
-```
+The backend reads the [HR sample agent](https://github.com/aws-samples/sample-open-weight-models-with-amazon-bedrock.git) and the legacy wizard deployer from the
+AWS sample repo at runtime
 
 ```bash
 # 1. Start the backend (in a separate terminal)
