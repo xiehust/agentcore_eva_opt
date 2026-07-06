@@ -362,6 +362,7 @@ export interface Messages {
       newBlank: string;
       newFromSample: string;
       newFromSampleV2: string;
+      newFromSampleZh: string;
       uploadPy: string;
       code: string;
       requirements: string;
@@ -1127,6 +1128,7 @@ export const en: Messages = {
       newBlank: "New blank agent",
       newFromSample: "New from HR sample",
       newFromSampleV2: "New from HR v2 sample",
+      newFromSampleZh: "New from HR sample (Chinese)",
       uploadPy: "Upload .py",
       code: "Agent code (deployed as main.py)",
       requirements: "Extra pip requirements",
@@ -1880,6 +1882,7 @@ export const zh: Messages = {
       newBlank: "新建空白 Agent",
       newFromSample: "从 HR 样例新建",
       newFromSampleV2: "从 HR v2 样例新建",
+      newFromSampleZh: "从 HR 中文样例新建",
       uploadPy: "上传 .py",
       code: "Agent 代码（部署为 main.py）",
       requirements: "额外 pip 依赖",

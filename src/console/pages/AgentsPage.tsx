@@ -106,6 +106,9 @@ function AgentList() {
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => void createFrom(async () => api.sampleAgent("v2"))}>
               {t.console.agents.newFromSampleV2}
             </Button>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void createFrom(async () => api.sampleAgent("zh"))}>
+              {t.console.agents.newFromSampleZh}
+            </Button>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => void createFrom(async () => ({ name: "New Agent", code: BLANK_TEMPLATE }))}>
               {t.console.agents.newBlank}
             </Button>

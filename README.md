@@ -87,8 +87,10 @@ mid-flow. All long AWS operations run as background jobs polled via
 Switching to Live AWS opens the console (also reachable from the landing page
 via **"Open Live console"**). It has seven sections:
 
-- **Agents** — create agents from the built-in **HR Assistant sample**, a blank
-  template, or an uploaded `.py` file; edit code in an in-browser CodeMirror
+- **Agents** — create agents from the built-in **HR Assistant sample** (v1,
+  v2 canary challenger, and a **Chinese variant** with a Chinese system prompt
+  + tool descriptions for all-Chinese demos), a blank template, or an uploaded
+  `.py` file; edit code in an in-browser CodeMirror
   editor; add extra pip requirements; **Deploy** builds the package (pip for
   ARM64), uploads to S3, creates the AgentCore runtime, and polls to ACTIVE
   (~5–15 min). **Undeploy** deletes the runtime + execution role.

@@ -44,6 +44,37 @@ def test_sample_agent_v2_variant() -> None:
     assert "v2" in config["systemPrompt"]
 
 
+def test_sample_agent_zh_variant() -> None:
+    resp = client.get("/api/samples/agent?variant=zh")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "中文" in body["name"]
+    # Same 5 tools as v1, still a valid AgentCore app with the bundle hook.
+    assert "BedrockAgentCoreApp" in body["code"]
+    assert "@app.entrypoint" in body["code"]
+    assert "get_config_bundle" in body["code"]
+    assert "escalate_to_hr_manager" not in body["code"]
+    # The baked-in default prompt was swapped for the Chinese one …
+    assert "Acme 公司的 HR 助手" in body["code"]
+    assert "You are a helpful HR Assistant" not in body["code"]
+    # … and the config mirrors it: zh prompt + 5 zh descriptions, EN tool names.
+    config = body["config"]
+    assert config["systemPrompt"].startswith("你是 Acme 公司的 HR 助手")
+    assert "Employee ID:" in config["systemPrompt"]  # extraction hint kept
+    assert len(config["toolDescriptions"]) == 5
+    assert set(config["toolDescriptions"]) == {
+        "get_pto_balance",
+        "submit_pto_request",
+        "lookup_hr_policy",
+        "get_benefits_summary",
+        "get_pay_stub",
+    }
+    assert all(
+        any("一" <= ch <= "鿿" for ch in desc)
+        for desc in config["toolDescriptions"].values()
+    )
+
+
 def test_sample_agent_unknown_variant_422() -> None:
     assert client.get("/api/samples/agent?variant=v9").status_code == 422
 

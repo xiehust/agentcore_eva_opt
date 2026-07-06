@@ -511,7 +511,7 @@ export class LiveApi {
   }
 
   // ─── Console: samples + evaluator list ────────────────────────────────
-  sampleAgent(variant: "v1" | "v2" = "v1") {
+  sampleAgent(variant: "v1" | "v2" | "zh" = "v1") {
     return this.request<SampleAgent>("GET", `/samples/agent?variant=${variant}`);
   }
   sampleDataset() {

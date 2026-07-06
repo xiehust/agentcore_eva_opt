@@ -58,7 +58,7 @@ describe("AgentsPage", () => {
     vi.stubGlobal("fetch", stub.fn);
     renderPage();
     await screen.findByText(/no agents yet/i);
-    fireEvent.click(screen.getByRole("button", { name: /new from hr sample/i }));
+    fireEvent.click(screen.getByRole("button", { name: "New from HR sample" }));
     // The editor opens on the created agent, with its name shown.
     await waitFor(() => {
       expect(screen.getAllByText("HR Assistant (sample)").length).toBeGreaterThan(0);

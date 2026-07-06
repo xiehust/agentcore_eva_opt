@@ -53,6 +53,48 @@ V2_ESCALATE_DESCRIPTION = (
     "tracked case and notifying the employee of next steps."
 )
 
+# Chinese variant of the v1 config. Tool NAMES stay English (they are code
+# identifiers the model calls); descriptions and the system prompt are
+# Chinese so the agent both understands and answers Chinese traffic
+# naturally. The "Employee ID:" extraction hint is spelled out because the
+# zh sample datasets keep that English context prefix.
+HR_SYSTEM_PROMPT_ZH = """你是 Acme 公司的 HR 助手,乐于助人。
+
+你帮助员工处理以下事务:
+- 查询带薪休假(PTO)余额
+- 提交休假申请
+- 查询公司 HR 政策(休假、远程办公、育儿假、行为准则)
+- 了解员工福利(医疗、牙科、视力、401k、人寿保险)
+- 查询工资单信息
+
+用户消息可能带有 "Employee ID: EMP-XXX." 形式的英文前缀,请从中提取员工
+工号并传给需要它的工具。请始终使用可用的工具准确回答问题,绝不编造政策
+细节、福利金额或工资信息 — 一律通过工具查询。用中文回答,保持简洁、
+专业、友好。"""
+
+HR_TOOL_DESCRIPTIONS_ZH: dict[str, str] = {
+    "get_pto_balance": "查询员工当前的带薪休假(PTO)余额。",
+    "submit_pto_request": "为员工提交一个带薪休假申请。",
+    "lookup_hr_policy": "按主题查询公司 HR 政策文档。",
+    "get_benefits_summary": "查询某项员工福利的摘要信息。",
+    "get_pay_stub": "查询员工指定薪资周期的工资单。",
+}
+
+
+def build_zh_code() -> str:
+    """v1 code with the baked-in default prompt swapped for the Chinese one
+    (same string-mutation approach as deploy_agent.build_v2_code)."""
+    import re
+
+    base = find_sample_agent_path().read_text()
+    new_prompt = f'DEFAULT_SYSTEM_PROMPT = """{HR_SYSTEM_PROMPT_ZH}"""\n'
+    out = re.sub(
+        r'DEFAULT_SYSTEM_PROMPT = """.*?"""\n', new_prompt, base, flags=re.DOTALL
+    )
+    if out == base:  # the marker must exist — fail loudly if upstream changes
+        raise RuntimeError("DEFAULT_SYSTEM_PROMPT block not found in sample agent")
+    return out
+
 
 def sample_agent(variant: str = "v1") -> dict[str, Any]:
     """The HR Assistant sample (v1) or its v2 variant, built fresh each call."""
@@ -90,6 +132,20 @@ def sample_agent(variant: str = "v1") -> dict[str, Any]:
                     **HR_TOOL_DESCRIPTIONS,
                     "escalate_to_hr_manager": V2_ESCALATE_DESCRIPTION,
                 },
+            },
+        }
+    if variant == "zh":
+        return {
+            "name": "HR 助手(中文样例)",
+            "description": (
+                "HR 助手的中文版:与 v1 相同的 5 个工具,系统提示词与工具"
+                "描述均为中文 — 配合中文样例数据集做全中文演示。"
+            ),
+            "code": build_zh_code(),
+            "requirements": [],
+            "config": {
+                "systemPrompt": HR_SYSTEM_PROMPT_ZH,
+                "toolDescriptions": dict(HR_TOOL_DESCRIPTIONS_ZH),
             },
         }
     raise ValueError(f"unknown sample agent variant: {variant}")
