@@ -14,6 +14,70 @@ It runs in **two modes**, switchable from the header toggle:
 | **Simulation** (default) | The guided 9-step wizard. Fully self-contained: no AWS credentials, no cost, no real resources. All identifiers (account `123456789012`, ARNs, IDs) are fabricated and every async op runs on compressed timers with deterministic results. |
 | **⚡ Live AWS** | A general-purpose **agent evaluation console** issuing **real** `bedrock-agentcore` calls through a local backend. Upload or edit any agent's Python code, manage evaluation datasets, deploy real runtimes, and run real batch evaluations with built-in or custom LLM-judge evaluators. **Incurs AWS cost.** |
 
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Browser["Browser — React 18 + Vite"]
+        SIM["Simulation wizard<br/>(9 steps, no AWS)"]
+        CONSOLE["Live console<br/>Agents · Datasets · Evaluators<br/>Runs · Experiments · Cleanup"]
+    end
+
+    subgraph Backend["FastAPI backend (localhost:8787)"]
+        API["Routers<br/>/agents /datasets /runs<br/>/experiments /bundles /abtest<br/>/recommend /cleanup /samples"]
+        JOBS["Background jobs<br/>(deploy · traffic · eval · monitor)"]
+        DB[("SQLite<br/>agents · datasets · runs<br/>experiments · jobs · sessions")]
+        DEPLOYER["deployer.py<br/>pip (ARM64) → zip → S3"]
+    end
+
+    subgraph AWS["AWS (us-west-2)"]
+        RT["AgentCore Runtime<br/>(agent code, Strands)"]
+        GW["AgentCore Gateway<br/>(A/B traffic routing)"]
+        AB["A/B tests<br/>config-bundle 50/50<br/>target canary 90/10"]
+        EVAL["Evaluations<br/>batch + online<br/>LLM-as-a-judge"]
+        REC["Recommendations<br/>(prompt + tool descriptions)"]
+        CW[("CloudWatch<br/>traces / spans")]
+        S3[("S3<br/>deployment package")]
+        IAM["IAM execution role"]
+    end
+
+    CONSOLE -->|"/api (Vite proxy)"| API
+    API --> JOBS
+    API --> DB
+    JOBS --> DEPLOYER
+    DEPLOYER --> S3
+    DEPLOYER --> IAM
+    DEPLOYER -->|create_agent_runtime| RT
+    JOBS -->|invoke_agent_runtime| RT
+    JOBS -->|SigV4 POST| GW
+    GW --> RT
+    RT --> CW
+    JOBS -->|start_batch_evaluation| EVAL
+    EVAL --> CW
+    JOBS --> REC
+    REC --> CW
+    API -->|create/monitor| AB
+    AB --> GW
+    AB --> EVAL
+```
+
+The frontend orchestrates each experiment stage by calling the existing
+endpoints and persisting job ids + results into the experiment record
+(server-side SQLite) — so a browser reload or backend restart resumes
+mid-flow. All long AWS operations run as background jobs polled via
+`GET /api/jobs/{id}`.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Landing](docs/screenshots/landing.png) | ![Runs](docs/screenshots/console-runs.png) |
+| **Landing** — choose the simulated wizard or the Live console | **Runs** — pick agent + dataset + evaluators; real batch-evaluation scores |
+| ![Experiment A/B](docs/screenshots/console-experiment-ab.png) | ![Agent editor](docs/screenshots/console-agent-editor.png) |
+| **Experiment** — config-bundle A/B results with significance + verdict + promote | **Agent editor** — CodeMirror agent code, pip requirements, prompt/tool config |
+
+*(Screenshots show real data from an end-to-end run against AWS us-west-2.)*
+
 ## Live console
 
 Switching to Live AWS opens the console (also reachable from the landing page
