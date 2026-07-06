@@ -65,18 +65,7 @@ function DatasetList() {
       title={t.console.datasets.title}
       accent="cyan"
       action={
-        <div className="flex flex-wrap gap-2">
-          {(samples.data?.datasets ?? []).map((s) => (
-            <Button
-              key={s.key}
-              size="sm"
-              variant="secondary"
-              disabled={busy}
-              onClick={() => void createFrom(async () => ({ name: s.name, description: s.description, items: s.items }))}
-            >
-              {t.console.datasets.fromSample(s.name)}
-            </Button>
-          ))}
+        <div className="flex flex-wrap justify-end gap-2">
           <Button
             size="sm"
             variant="secondary"
@@ -108,6 +97,24 @@ function DatasetList() {
           {error}
         </div>
       )}
+      {/* Sample gallery: 8 built-in sets (en + zh) — a wrapping row inside the
+          body; the header action slot can't fit this many without overflow. */}
+      <div className="mb-3">
+        <span className="eyebrow mb-1.5 block">{t.console.datasets.newFromSample}</span>
+        <div className="flex flex-wrap gap-2">
+          {(samples.data?.datasets ?? []).map((s) => (
+            <Button
+              key={s.key}
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => void createFrom(async () => ({ name: s.name, description: s.description, items: s.items }))}
+            >
+              {t.console.datasets.fromSample(s.name)}
+            </Button>
+          ))}
+        </div>
+      </div>
       <p className="mb-3 text-[11px] text-fog-500">{t.console.datasets.formatHint}</p>
       {datasets.loading && <p className="text-sm text-fog-500">{t.console.common.loading}</p>}
       {datasets.error && <p className="text-sm text-danger">{datasets.error}</p>}
