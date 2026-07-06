@@ -171,6 +171,19 @@ proxies `/api` → `http://localhost:8787`).
 The backend reads the [HR sample agent](https://github.com/aws-samples/sample-open-weight-models-with-amazon-bedrock.git) and the legacy wizard deployer from the
 AWS sample repo at runtime
 
+**One-shot (recommended)** — starts both services in the background with logs
+and pidfiles under `.run/`, waits until each answers, and is idempotent:
+
+```bash
+./scripts/start.sh   # backend :8787 + frontend :5173, detached
+./scripts/stop.sh    # stop both (kills the process tree, then frees the ports)
+```
+
+Override ports with `BACKEND_PORT` / `FRONTEND_PORT`. Logs:
+`.run/backend.log`, `.run/frontend.log`.
+
+**Or manually, in two terminals:**
+
 ```bash
 # 1. Start the backend (in a separate terminal)
 cd backend
@@ -178,9 +191,9 @@ uv run uvicorn app.main:app --port 8787
 
 # 2. Start the frontend
 npm run dev
-
-# 3. In the app, flip the header toggle to "⚡ Live AWS"
 ```
+
+Then, in the app, flip the header toggle to **"⚡ Live AWS"**.
 
 **Credentials.** By default the backend uses the host's AWS credentials via
 boto3's default provider chain — on an EC2 instance this is the attached **IAM
@@ -207,6 +220,8 @@ credential-free snapshot is stored (never AK/SK). "Reset journey" clears it. See
 
 | Command             | What it does                                  |
 | ------------------- | --------------------------------------------- |
+| `./scripts/start.sh` | Start backend + frontend in the background (`.run/` logs + pids) |
+| `./scripts/stop.sh` | Stop both background services                 |
 | `npm run dev`       | Vite dev server with HMR                      |
 | `npm run build`     | Type-check then production build to `dist/`   |
 | `npm run preview`   | Serve the production build (port 4173)        |
