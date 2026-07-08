@@ -96,9 +96,9 @@ export function Step9Cleanup() {
 
   return (
     <div>
-      <StepHeader index={10} title={t.steps.cleanup.title} lede={t.steps.cleanup.lede} />
+      <StepHeader index={10} title={t.steps.cleanup.title} lede={t.steps.cleanup.lede} learn={t.steps.cleanup.learn} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <Card
           eyebrow={t.step9.teardownEyebrow}
           title={t.step9.teardownTitle}

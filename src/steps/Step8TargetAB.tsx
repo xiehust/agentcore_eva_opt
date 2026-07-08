@@ -195,7 +195,7 @@ export function Step8TargetAB() {
 
   return (
     <div>
-      <StepHeader index={9} title={t.steps.targetAB.title} lede={t.steps.targetAB.lede} />
+      <StepHeader index={9} title={t.steps.targetAB.title} lede={t.steps.targetAB.lede} learn={t.steps.targetAB.learn} />
 
       <div className="space-y-6">
         {/* Routing comparison table */}
@@ -222,7 +222,7 @@ export function Step8TargetAB() {
           </div>
         </Card>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
           {/* v2 deploy */}
           <Card eyebrow={t.step8.deployEyebrow} title={t.step8.deployTitle} accent="orange">
             {!v2Deployed ? (

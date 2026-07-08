@@ -82,9 +82,9 @@ export function Step2Deploy() {
 
   return (
     <div>
-      <StepHeader index={2} title={t.steps.deploy.title} lede={t.steps.deploy.lede} />
+      <StepHeader index={2} title={t.steps.deploy.title} lede={t.steps.deploy.lede} learn={t.steps.deploy.learn} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <Card
           eyebrow={t.step2.deployEyebrow}
           title={t.step2.deployTitle}

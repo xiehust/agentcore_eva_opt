@@ -34,9 +34,9 @@ export function Step1Config() {
 
   return (
     <div>
-      <StepHeader index={1} title={t.steps.config.title} lede={t.steps.config.lede} />
+      <StepHeader index={1} title={t.steps.config.title} lede={t.steps.config.lede} learn={t.steps.config.learn} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <Card eyebrow={t.step1.identityEyebrow} title={t.step1.identityTitle} accent="cyan">
           <div className="grid grid-cols-2 gap-3">
             <Stat label={t.step1.account} value={acct} mono truncate />

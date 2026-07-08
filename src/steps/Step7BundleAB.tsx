@@ -197,10 +197,10 @@ export function Step7BundleAB() {
 
   return (
     <div>
-      <StepHeader index={8} title={t.steps.bundleAB.title} lede={t.steps.bundleAB.lede} />
+      <StepHeader index={8} title={t.steps.bundleAB.title} lede={t.steps.bundleAB.lede} learn={t.steps.bundleAB.learn} />
 
       <div className="space-y-6">
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
           <Card eyebrow={t.step7.setupEyebrow} title={t.step7.setupTitle} accent="orange">
             {isLive ? (
               <LiveRunButton

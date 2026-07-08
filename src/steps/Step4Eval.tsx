@@ -11,6 +11,7 @@ import { evalStages } from "../sim/engine";
 import { BASELINE_SCORES } from "../data/results";
 import {
   BUILTIN_EVALUATORS,
+  BUILTIN_EVALUATORS_DOCS_URL,
   DEFAULT_EVALUATOR_IDS,
   EVALUATOR_LABELS,
   CUSTOM_EVALUATOR_SAMPLE,
@@ -192,10 +193,10 @@ export function Step4Eval() {
 
   return (
     <div>
-      <StepHeader index={4} title={t.steps.eval.title} lede={t.steps.eval.lede} />
+      <StepHeader index={4} title={t.steps.eval.title} lede={t.steps.eval.lede} learn={t.steps.eval.learn} />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-1">
+      <div className="space-y-6">
+        <div className="space-y-6">
           <Card eyebrow={t.step4.evalEyebrow} title={t.step4.evalTitle} accent="orange">
             {isLive ? (
               <LiveRunButton
@@ -228,6 +229,14 @@ export function Step4Eval() {
             }
           >
             <p className="mb-2 text-xs text-fog-500">{t.step4.pickerHint}</p>
+            <a
+              href={BUILTIN_EVALUATORS_DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-2 inline-flex items-center gap-1.5 font-mono text-xs text-cyan-soft underline-offset-4 hover:underline"
+            >
+              ↗ {t.step4.docsLink}
+            </a>
             <ul className="space-y-1" data-testid="evaluator-picker">
               {BUILTIN_EVALUATORS.map((e) => {
                 const isDefault = DEFAULT_IDS.has(e.evaluatorId);
@@ -305,7 +314,6 @@ export function Step4Eval() {
           eyebrow={t.step4.scoresEyebrow}
           title={t.step4.scoresTitle}
           accent="cyan"
-          className="lg:col-span-2"
           action={
             done ? (
               <Badge variant="ok" dot>

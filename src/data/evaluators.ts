@@ -6,6 +6,10 @@
 
 export type EvaluatorLevel = "SESSION" | "TRACE" | "TOOL_CALL";
 
+/** AWS docs page describing every built-in evaluator in detail. */
+export const BUILTIN_EVALUATORS_DOCS_URL =
+  "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations-types.html";
+
 export interface BuiltinEvaluator {
   evaluatorId: string;
   label: string;

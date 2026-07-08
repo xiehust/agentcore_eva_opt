@@ -97,9 +97,9 @@ export function Step6Bundles() {
 
   return (
     <div>
-      <StepHeader index={7} title={t.steps.bundles.title} lede={t.steps.bundles.lede} />
+      <StepHeader index={7} title={t.steps.bundles.title} lede={t.steps.bundles.lede} learn={t.steps.bundles.learn} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <Card eyebrow={t.step6.controlEyebrow} title={t.step6.controlTitle} accent="none">
           <Button variant="secondary" onClick={createControl} disabled={!!control}>
             {control ? t.common.created : t.step6.createControl}

@@ -34,10 +34,11 @@ export function Step5Insights() {
         index={5}
         title={t.steps.insights.title}
         lede={t.steps.insights.lede}
+        learn={t.steps.insights.learn}
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-1">
+      <div className="space-y-6">
+        <div className="space-y-6">
           <Card
             eyebrow={t.stepInsights.runEyebrow}
             title={t.stepInsights.runTitle}
@@ -87,7 +88,6 @@ export function Step5Insights() {
           eyebrow={t.stepInsights.resultsEyebrow}
           title={t.stepInsights.resultsTitle}
           accent="cyan"
-          className="lg:col-span-2"
           action={
             done ? (
               <Badge variant="danger" dot>

@@ -41,8 +41,13 @@ wait_http() { # wait_http <url> <name> <timeout_s>
 AUTH_ARGS=()
 HOST_ARGS=()
 if [[ "$MODE" == "prod" ]]; then
+  # Build if dist/ is missing OR any frontend source is newer than the build.
   if [[ ! -f "$ROOT/dist/index.html" ]]; then
     echo "building frontend (dist/ missing) …"
+    (cd "$ROOT" && npm run build >"$RUN_DIR/build.log" 2>&1)
+  elif [[ -n "$(find "$ROOT/src" "$ROOT/index.html" "$ROOT/vite.config.ts" \
+      -newer "$ROOT/dist/index.html" -print -quit 2>/dev/null)" ]]; then
+    echo "building frontend (sources newer than dist/) …"
     (cd "$ROOT" && npm run build >"$RUN_DIR/build.log" 2>&1)
   fi
   PASS_FILE="$RUN_DIR/auth_password"

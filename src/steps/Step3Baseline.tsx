@@ -202,11 +202,11 @@ export function Step3Baseline() {
 
   return (
     <div>
-      <StepHeader index={3} title={t.steps.baseline.title} lede={t.steps.baseline.lede} />
+      <StepHeader index={3} title={t.steps.baseline.title} lede={t.steps.baseline.lede} learn={t.steps.baseline.learn} />
 
-      <div className="grid gap-6 lg:grid-cols-5">
+      <div className="space-y-6">
         {/* Bundle creation + traffic controls */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="space-y-6">
           <Card eyebrow={t.step3.bundleEyebrow} title={t.step3.bundleTitle} accent="orange">
             <Button
               onClick={isLive ? createBundleLive : createBundle}
@@ -281,7 +281,6 @@ export function Step3Baseline() {
           eyebrow={t.step3.logEyebrow}
           title={t.step3.logTitle}
           accent="none"
-          className="lg:col-span-3"
           action={
             <Badge variant={log.length === 10 ? "ok" : "neutral"} mono>
               {t.common.sessions(log.length, 10)}

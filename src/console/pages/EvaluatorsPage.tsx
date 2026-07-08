@@ -3,7 +3,11 @@ import { Badge, Button, Card } from "../../components/ui";
 import { useLiveApi } from "../../lib/useLiveApi";
 import { useResource } from "../../lib/useResource";
 import { useLang } from "../../i18n/lang";
-import { BUILTIN_EVALUATORS, CUSTOM_EVALUATOR_SAMPLE } from "../../data/evaluators";
+import {
+  BUILTIN_EVALUATORS,
+  BUILTIN_EVALUATORS_DOCS_URL,
+  CUSTOM_EVALUATOR_SAMPLE,
+} from "../../data/evaluators";
 
 interface ScalePoint {
   value: number;
@@ -80,7 +84,21 @@ export function EvaluatorsPage() {
 
   return (
     <div className="space-y-4">
-      <Card eyebrow={t.console.evaluators.builtinEyebrow} title={t.console.evaluators.title} accent="cyan">
+      <Card
+        eyebrow={t.console.evaluators.builtinEyebrow}
+        title={t.console.evaluators.title}
+        accent="cyan"
+        action={
+          <a
+            href={BUILTIN_EVALUATORS_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 font-mono text-xs text-cyan-soft underline-offset-4 hover:underline"
+          >
+            ↗ {t.console.evaluators.docsLink}
+          </a>
+        }
+      >
         <ul className="grid gap-2 sm:grid-cols-2">
           {BUILTIN_EVALUATORS.map((ev) => (
             <li key={ev.evaluatorId} className="rounded-md border border-line bg-ink-750/60 px-3 py-2.5">
