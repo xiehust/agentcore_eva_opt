@@ -72,6 +72,32 @@ def invoke_http(
         ) from exc
 
 
+def flatten_sse(body: str) -> str:
+    """Collapse a text/event-stream body into plain text.
+
+    Streaming runtimes answer with SSE — one JSON-encoded string per
+    ``data:`` line. Non-SSE bodies pass through unchanged. Keeps the
+    user-simulation actor's input (and the stored transcripts) readable.
+    """
+    if "data:" not in body:
+        return body
+    chunks: list[str] = []
+    saw_data = False
+    for line in body.splitlines():
+        if not line.startswith("data:"):
+            continue
+        saw_data = True
+        raw = line[len("data:"):].strip()
+        if not raw:
+            continue
+        try:
+            decoded = json.loads(raw)
+            chunks.append(decoded if isinstance(decoded, str) else raw)
+        except ValueError:
+            chunks.append(raw)
+    return "".join(chunks) if saw_data else body
+
+
 def resolve_invoker(
     agent: dict[str, Any], data_client: Any
 ) -> Callable[[str, str], str] | None:
@@ -82,8 +108,10 @@ def resolve_invoker(
         agent_arn = deployment["runtimeArn"]
 
         def _invoke_runtime(session_id: str, prompt: str) -> str:
-            return agentcore.invoke_agent_runtime(
-                data_client, agent_arn=agent_arn, session_id=session_id, prompt=prompt
+            return flatten_sse(
+                agentcore.invoke_agent_runtime(
+                    data_client, agent_arn=agent_arn, session_id=session_id, prompt=prompt
+                )
             )
 
         return _invoke_runtime

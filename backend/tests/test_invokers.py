@@ -279,3 +279,20 @@ def test_dataset_run_http_error_marks_run_failed(
     assert run["status"] == "failed"
     assert "HTTP 401" in run["error"]
     assert "bad token" in run["error"]
+
+
+# ─── flatten_sse ─────────────────────────────────────────────────────────────
+def test_flatten_sse_collapses_stream() -> None:
+    body = 'data: ""\n\ndata: "Hello "\n\ndata: "world"\n\ndata: ""\n'
+    assert invokers.flatten_sse(body) == "Hello world"
+
+
+def test_flatten_sse_passthrough_plain_text() -> None:
+    assert invokers.flatten_sse('{"result": "plain"}') == '{"result": "plain"}'
+    assert invokers.flatten_sse("just text") == "just text"
+
+
+def test_flatten_sse_tolerates_non_json_chunks() -> None:
+    body = "data: not-json-chunk\n\ndata: \"ok\"\n"
+    # Non-JSON chunks pass through raw; JSON strings decode.
+    assert invokers.flatten_sse(body) == "not-json-chunkok"
