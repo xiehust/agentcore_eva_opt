@@ -10,11 +10,22 @@ CloudWatch via the ADOT SDK — no AgentCore runtime involved.
 
 The Claude Agent SDK spawns the Claude Code CLI as a subprocess, so OTEL
 auto-instrumentation in this process can't see the LLM calls. `app/tracing.py`
-emits both telemetry records AgentCore Evaluations joins per invocation —
-an `invoke_agent agentxray-demo-agent` **span** (metadata → `aws/spans`) and a
-Gen AI content **event** (`body.input.messages` / `body.output.messages` → the
-agent log group), with `session.id` on both plus OTEL baggage. This is the
-same shape ANY black-box agent can use to become evaluable.
+emits both telemetry record kinds AgentCore Evaluations joins — **spans**
+(metadata → `aws/spans`) and Gen AI content **events**
+(`body.input.messages` / `body.output.messages` → the agent log group), with
+`session.id` on both plus OTEL baggage. Per invocation:
+
+```
+invoke_agent agentxray-demo-agent      span + event (prompt/answer)
+└─ execute_tool calculator             span + event per tool call
+   (gen_ai.tool.name / .call.id / .description / .json_schema / .status)
+```
+
+`run_agent` pairs each `ToolUseBlock` with its `ToolResultBlock` by
+`tool_use_id`; `main.py` then emits one `execute_tool` child span per call —
+that's what the tool-level evaluators (ToolSelectionAccuracy,
+ToolParameterAccuracy) read. This is the same shape ANY black-box agent can
+use to become evaluable.
 
 Two hard-won requirements (both enforced in `app/tracing.py` and covered by
 tests — each silently fails ALL sessions otherwise):

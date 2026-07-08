@@ -43,18 +43,32 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
     model = os.environ.get("ANTHROPIC_MODEL", "claude")
     with tracing.traced_invocation(session_id, req.prompt) as span:
         try:
-            output = await agent.run_agent(req.prompt)
+            result = await agent.run_agent(req.prompt)
         except Exception as exc:
             span.record_exception(exc)
             raise HTTPException(
                 status_code=502, detail=f"{type(exc).__name__}: {exc}"
             ) from exc
+        # One execute_tool span (child of invoke_agent) per tool call — the
+        # tool-level evaluators (ToolSelectionAccuracy etc.) read these.
+        for call in result.tool_calls:
+            spec = agent.TOOL_SPECS.get(call.name, {})
+            tracing.record_tool_call(
+                session_id=session_id,
+                call_id=call.call_id,
+                name=call.name,
+                description=spec.get("description", ""),
+                json_schema=spec.get("schema", {}),
+                arguments=call.input,
+                result_text=call.result_text,
+                is_error=call.is_error,
+            )
         tracing.record_result(
             span,
             session_id=session_id,
             system_prompt=agent.SYSTEM_PROMPT,
             prompt=req.prompt,
-            output=output,
+            output=result.output,
             model=model,
         )
-    return InvokeResponse(output=output, sessionId=session_id)
+    return InvokeResponse(output=result.output, sessionId=session_id)

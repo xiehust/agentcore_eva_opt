@@ -55,7 +55,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     async def fake_query(prompt: str, options: Any):
         yield AssistantMessage(content=[TextBlock(text="out-text")], model="stub")
 
-    async def run_stub(prompt: str, *, query_fn: Any = None) -> str:
+    async def run_stub(prompt: str, *, query_fn: Any = None) -> agent_module.AgentResult:
         return await real_run_agent(prompt, query_fn=fake_query)
 
     monkeypatch.setattr("app.main.agent.run_agent", run_stub)
@@ -101,6 +101,81 @@ def test_invoke_emits_strands_shaped_span_and_event(client: TestClient) -> None:
     assert out_msgs == [
         {"content": {"message": "out-text", "finish_reason": "end_turn"}, "role": "assistant"}
     ]
+
+
+def test_tool_call_emits_execute_tool_span_and_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A tool-using conversation → an execute_tool child span (Strands shape)
+    + its own content event, both under the invoke_agent parent."""
+    from claude_agent_sdk import ToolResultBlock, ToolUseBlock, UserMessage
+
+    from app import agent as agent_module
+
+    real_run_agent = agent_module.run_agent
+
+    async def fake_query(prompt: str, options: Any):
+        yield AssistantMessage(
+            content=[
+                ToolUseBlock(
+                    id="toolu_99", name="mcp__tools__calculator", input={"expression": "6*7"}
+                )
+            ],
+            model="stub",
+        )
+        yield UserMessage(
+            content=[
+                ToolResultBlock(
+                    tool_use_id="toolu_99",
+                    content=[{"type": "text", "text": "6*7 = 42"}],
+                    is_error=False,
+                )
+            ]
+        )
+        yield AssistantMessage(content=[TextBlock(text="**42**")], model="stub")
+
+    async def run_stub(prompt: str, *, query_fn: Any = None) -> agent_module.AgentResult:
+        return await real_run_agent(prompt, query_fn=fake_query)
+
+    monkeypatch.setattr("app.main.agent.run_agent", run_stub)
+    monkeypatch.setenv("ANTHROPIC_MODEL", "test-model-id")
+    client = TestClient(app)
+
+    resp = client.post("/invoke", json={"prompt": "6*7?", "sessionId": "sess-t1"})
+    assert resp.status_code == 200
+
+    spans = _SPAN_EXPORTER.get_finished_spans()
+    by_op = {s.attributes["gen_ai.operation.name"]: s for s in spans}
+    assert set(by_op) == {"invoke_agent", "execute_tool"}
+    parent = by_op["invoke_agent"]
+    tool_span = by_op["execute_tool"]
+
+    # Strands-shaped execute_tool span, parented under invoke_agent.
+    assert tool_span.name == "execute_tool calculator"
+    assert tool_span.instrumentation_scope.name == "strands.telemetry.tracer"
+    assert tool_span.attributes["gen_ai.tool.name"] == "calculator"
+    assert tool_span.attributes["gen_ai.tool.call.id"] == "toolu_99"
+    assert tool_span.attributes["gen_ai.tool.status"] == "success"
+    assert "expression" in tool_span.attributes["gen_ai.tool.json_schema"]
+    assert tool_span.attributes["aws.genai.span_kind"] == "TOOL"
+    assert tool_span.attributes["session.id"] == "sess-t1"
+    assert tool_span.parent is not None
+    assert tool_span.parent.span_id == parent.context.span_id
+
+    # Two content events: one for the tool call, one for the invocation.
+    logs = _LOG_EXPORTER.get_finished_logs()
+    assert len(logs) == 2
+    tool_event = next(
+        log.log_record
+        for log in logs
+        if log.log_record.span_id == tool_span.context.span_id
+    )
+    body = tool_event.body
+    in_msg = body["input"]["messages"][0]
+    assert in_msg["role"] == "tool"
+    assert in_msg["content"]["id"] == "toolu_99"
+    assert '"expression"' in in_msg["content"]["content"]
+    out_msg = body["output"]["messages"][0]
+    assert out_msg["content"]["id"] == "toolu_99"
+    assert "6*7 = 42" in out_msg["content"]["message"]
 
 
 def test_error_path_still_closes_span(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -71,6 +71,79 @@ def traced_invocation(session_id: str, prompt: str) -> Iterator[trace.Span]:
         detach(token)
 
 
+def record_tool_call(
+    *,
+    session_id: str,
+    call_id: str,
+    name: str,
+    description: str,
+    json_schema: dict[str, object],
+    arguments: dict[str, object],
+    result_text: str,
+    is_error: bool = False,
+) -> None:
+    """execute_tool span + content event for one tool invocation.
+
+    Mirrors the Strands tool telemetry exactly (verified against live spans):
+    span attrs gen_ai.operation.name=execute_tool / gen_ai.tool.* /
+    aws.genai.span_kind=TOOL; event body input.content = {content: <args
+    json>, role: tool, id} and output.content = {message: '[{"text": …}]',
+    id}. Tool-level evaluators (ToolSelectionAccuracy, ToolParameterAccuracy)
+    read these. Must be called INSIDE traced_invocation so the span parents
+    under invoke_agent.
+    """
+    with _tracer.start_as_current_span(f"execute_tool {name}") as span:
+        span.set_attribute("gen_ai.operation.name", "execute_tool")
+        span.set_attribute("gen_ai.system", PROVIDER)
+        span.set_attribute("gen_ai.provider.name", PROVIDER)
+        span.set_attribute("gen_ai.tool.name", name)
+        span.set_attribute("gen_ai.tool.call.id", call_id)
+        span.set_attribute("gen_ai.tool.description", description)
+        span.set_attribute("gen_ai.tool.json_schema", json.dumps(json_schema))
+        span.set_attribute("gen_ai.tool.status", "error" if is_error else "success")
+        span.set_attribute("aws.genai.span_kind", "TOOL")
+        span.set_attribute("session.id", session_id)
+        span.set_status(trace.StatusCode.ERROR if is_error else trace.StatusCode.OK)
+
+        body = {
+            "input": {
+                "messages": [
+                    {
+                        "content": {
+                            "content": json.dumps(arguments),
+                            "role": "tool",
+                            "id": call_id,
+                        },
+                        "role": "tool",
+                    }
+                ]
+            },
+            "output": {
+                "messages": [
+                    {
+                        "content": {
+                            "message": json.dumps([{"text": result_text}]),
+                            "id": call_id,
+                        },
+                        "role": "assistant",
+                    }
+                ]
+            },
+        }
+        ctx = span.get_span_context()
+        _event_logger.emit(
+            Event(
+                name=EVAL_SCOPE,
+                timestamp=time.time_ns(),
+                body=body,
+                attributes={"session.id": session_id},
+                trace_id=ctx.trace_id,
+                span_id=ctx.span_id,
+                trace_flags=ctx.trace_flags,
+            )
+        )
+
+
 def record_result(
     span: trace.Span,
     *,
