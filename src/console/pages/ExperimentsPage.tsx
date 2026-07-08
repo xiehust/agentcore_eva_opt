@@ -11,6 +11,7 @@ import { experimentNames } from "../../lib/experimentNames";
 import { promoteVerdict, verdictSentence } from "../../lib/abVerdict";
 import {
   EXPERIMENT_STAGES,
+  legacyItems,
   type ABTestMetric,
   type AgentRecord,
   type ExperimentRecord,
@@ -562,7 +563,7 @@ function AbTestStage({ ctx }: { ctx: StageContext }) {
     const { jobId } = await api.gatewayTraffic({
       gatewayId: a.gatewayId,
       targetName: a.targetNameV1,
-      prompts: dataset.items.map((i) => ({ prompt: i.prompt, context: i.context })),
+      prompts: legacyItems(dataset).map((i) => ({ prompt: i.prompt, context: i.context })),
       creds,
     });
     await putArtifacts(ctx, { gwTrafficJobId: jobId, gwTrafficDatasetId: dataset.id });
@@ -764,7 +765,7 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
     const { jobId } = await api.gatewayTraffic({
       gatewayId: a.gatewayId,
       targetName: a.targetNameV2,
-      prompts: dataset.items.map((i) => ({ prompt: i.prompt, context: i.context })),
+      prompts: legacyItems(dataset).map((i) => ({ prompt: i.prompt, context: i.context })),
       creds,
     });
     await putArtifacts(ctx, { targetTrafficJobId: jobId, targetTrafficDatasetId: dataset.id });

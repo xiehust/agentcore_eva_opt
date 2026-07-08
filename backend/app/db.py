@@ -83,6 +83,8 @@ def _connect() -> sqlite3.Connection:
             name        TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT '',
             items       TEXT NOT NULL,
+            kind        TEXT NOT NULL DEFAULT 'legacy',
+            cloud       TEXT,
             created_at  REAL NOT NULL,
             updated_at  REAL NOT NULL
         );
@@ -101,6 +103,7 @@ def _connect() -> sqlite3.Connection:
             error         TEXT,
             job_id        TEXT,
             source        TEXT NOT NULL DEFAULT 'dataset',
+            transcripts   TEXT,
             created_at    REAL NOT NULL,
             updated_at    REAL NOT NULL
         );
@@ -146,6 +149,13 @@ def _connect() -> sqlite3.Connection:
     run_cols = [r[1] for r in _conn.execute("PRAGMA table_info(runs)")]
     if "source" not in run_cols:
         _conn.execute("ALTER TABLE runs ADD COLUMN source TEXT NOT NULL DEFAULT 'dataset'")
+    if "transcripts" not in run_cols:
+        _conn.execute("ALTER TABLE runs ADD COLUMN transcripts TEXT")
+    dataset_cols = [r[1] for r in _conn.execute("PRAGMA table_info(datasets)")]
+    if "kind" not in dataset_cols:
+        _conn.execute("ALTER TABLE datasets ADD COLUMN kind TEXT NOT NULL DEFAULT 'legacy'")
+    if "cloud" not in dataset_cols:
+        _conn.execute("ALTER TABLE datasets ADD COLUMN cloud TEXT")
     _conn.commit()
     return _conn
 
@@ -380,6 +390,9 @@ def _dataset_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "name": row["name"],
         "description": row["description"],
         "items": json.loads(row["items"]),
+        "kind": row["kind"],
+        # AWS cloud copy info ({datasetId, datasetArn, status, ...}) or None.
+        "cloud": json.loads(row["cloud"]) if row["cloud"] else None,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -391,16 +404,17 @@ def create_dataset(
     name: str,
     description: str = "",
     items: list[dict[str, Any]],
+    kind: str = "legacy",
 ) -> None:
     now = time.time()
     with _lock:
         conn = _connect()
         conn.execute(
             """
-            INSERT INTO datasets (id, name, description, items, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO datasets (id, name, description, items, kind, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (dataset_id, name, description, json.dumps(items), now, now),
+            (dataset_id, name, description, json.dumps(items), kind, now, now),
         )
         conn.commit()
 
@@ -425,6 +439,7 @@ def update_dataset(
     name: str | None = None,
     description: str | None = None,
     items: list[dict[str, Any]] | None = None,
+    cloud: dict[str, Any] | None = None,
 ) -> None:
     sets: list[str] = ["updated_at = ?"]
     params: list[Any] = [time.time()]
@@ -437,6 +452,9 @@ def update_dataset(
     if items is not None:
         sets.append("items = ?")
         params.append(json.dumps(items))
+    if cloud is not None:
+        sets.append("cloud = ?")
+        params.append(json.dumps(cloud))
     params.append(dataset_id)
     with _lock:
         conn = _connect()
@@ -469,6 +487,8 @@ def _run_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "jobId": row["job_id"],
         # "dataset" | "lookback:<hours>" | "sessions:<count>"
         "source": row["source"],
+        # Simulated-run conversation transcripts (per scenario), else None.
+        "transcripts": json.loads(row["transcripts"]) if row["transcripts"] else None,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -538,6 +558,7 @@ def update_run(
     batch_eval_id: str | None = None,
     scores: list[dict[str, Any]] | None = None,
     job_id: str | None = None,
+    transcripts: list[dict[str, Any]] | None = None,
 ) -> None:
     sets: list[str] = ["updated_at = ?"]
     params: list[Any] = [time.time()]
@@ -559,6 +580,9 @@ def update_run(
     if job_id is not None:
         sets.append("job_id = ?")
         params.append(job_id)
+    if transcripts is not None:
+        sets.append("transcripts = ?")
+        params.append(json.dumps(transcripts))
     params.append(run_id)
     with _lock:
         conn = _connect()

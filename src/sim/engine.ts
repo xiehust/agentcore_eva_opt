@@ -119,6 +119,26 @@ export function evalStages(what: string, terminal = "COMPLETED"): SimStage[] {
   ];
 }
 
+/** Dataset-runner sequence: invoke → wait → submit → poll (batch runner). */
+export function datasetEvalStages(terminal = "COMPLETED"): SimStage[] {
+  return [
+    { key: "invoke", label: "Invoking agent per scenario (3 sessions)", ms: 620 },
+    { key: "wait", label: "Waiting for CloudWatch ingestion", ms: 520 },
+    { key: "submit", label: "Submitting StartBatchEvaluation with ground truth", ms: 380 },
+    { key: "poll", label: "Polling GetBatchEvaluation", ms: 560, terminal },
+  ];
+}
+
+/** User-simulation sequence: the actor drives multi-turn conversations. */
+export function userSimStages(terminal = "COMPLETED"): SimStage[] {
+  return [
+    { key: "spawn", label: "Spawning LLM actors (2 personas)", ms: 340 },
+    { key: "converse", label: "Actors conversing with the agent", ms: 900 },
+    { key: "stop", label: "Goal / max_turns stop conditions reached", ms: 300 },
+    { key: "evaluate", label: "Evaluating completed sessions", ms: 520, terminal },
+  ];
+}
+
 /** Insights analysis sequence: per-session LLM triage, then clustering. */
 export function insightStages(terminal = "COMPLETED"): SimStage[] {
   return [

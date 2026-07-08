@@ -24,6 +24,7 @@ export const STEP_ORDER: StepKey[] = [
   "deploy",
   "baseline",
   "eval",
+  "datasetEval",
   "insights",
   "recommend",
   "bundles",

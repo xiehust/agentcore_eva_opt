@@ -31,7 +31,7 @@ export function Step5Insights() {
   return (
     <div>
       <StepHeader
-        index={5}
+        index={6}
         title={t.steps.insights.title}
         lede={t.steps.insights.lede}
         learn={t.steps.insights.learn}

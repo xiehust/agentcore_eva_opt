@@ -21,9 +21,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from .. import agentcore, db, invokers, jobs
-from ..aws import data, get_session
-from ..models import RunCreateRequest, format_prompt
+from .. import agentcore, db, invokers, jobs, simulation
+from ..aws import bedrock_runtime, data, get_session
+from ..models import RunCreateRequest
+from ..scenarios import ground_truth_metadata, normalize_scenarios
 from ..telemetry import resolve_telemetry
 
 router = APIRouter(prefix="/api", tags=["runs"])
@@ -106,6 +107,9 @@ def _create_active_run(req: RunCreateRequest, agent: dict[str, Any]) -> dict[str
     evaluators = req.evaluators or list(agentcore.BUILTIN_EVALUATORS)
     run_id = uuid.uuid4().hex[:12]
     agent_arn = deployment.get("runtimeArn")
+    kind = dataset.get("kind", "legacy")
+    scenarios = normalize_scenarios(dataset)
+    sim_model_id = req.simulationModelId or simulation.DEFAULT_ACTOR_MODEL_ID
     db.create_run(
         run_id,
         agent_id=req.agentId,
@@ -124,27 +128,47 @@ def _create_active_run(req: RunCreateRequest, agent: dict[str, Any]) -> dict[str
         try:
             session = get_session(req.creds)
 
-            # 1. Traffic: one session per dataset item, via whichever invoker
-            #    the agent supports (AgentCore runtime or external HTTP).
+            # 1. Traffic: one session per scenario, via whichever invoker the
+            #    agent supports (AgentCore runtime or external HTTP). Legacy
+            #    prompt items were normalized to single-turn scenarios;
+            #    predefined turns replay sequentially in the same session;
+            #    simulated scenarios are driven by the actor LLM.
             db.update_run(run_id, status="invoking")
             client = data(session)
             invoke = invokers.resolve_invoker(agent, client)
             assert invoke is not None  # guarded above
+            bedrock = bedrock_runtime(session) if kind == "simulated" else None
             session_ids: list[str] = []
-            for i, item in enumerate(items):
+            transcripts: list[dict[str, Any]] = []
+            for i, scenario in enumerate(scenarios):
                 sid = str(uuid.uuid4())
-                full = format_prompt(item["prompt"], context=item.get("context"))
-                invoke(sid, full)
+                if kind == "simulated":
+                    result = simulation.run_simulated_scenario(
+                        invoke,
+                        scenario,
+                        bedrock_client=bedrock,
+                        model_id=sim_model_id,
+                        session_id=sid,
+                        progress=progress,
+                    )
+                    transcripts.append(result)
+                else:
+                    for turn in scenario["turns"]:
+                        invoke(sid, turn["input"])
                 session_ids.append(sid)
-                progress(f"sent {i + 1}/{len(items)}")
+                progress(f"scenario {i + 1}/{len(scenarios)} done")
             db.update_run(run_id, session_ids=session_ids)
+            if transcripts:
+                db.update_run(run_id, transcripts=transcripts)
 
             # 2. Give the traces time to land in CloudWatch before evaluating.
             db.update_run(run_id, status="waiting")
             progress(f"waiting {wait_seconds}s for traces to land in CloudWatch")
             _sleep(wait_seconds)
 
-            # 3. Batch evaluation over just this run's sessions.
+            # 3. Batch evaluation over just this run's sessions, carrying the
+            #    scenarios' ground truth (assertions / expected trajectory /
+            #    expected responses) as per-session metadata.
             db.update_run(run_id, status="evaluating")
             # Batch evaluation names must match [a-zA-Z][a-zA-Z0-9_]{0,47} —
             # no hyphens, must start with a letter.
@@ -155,6 +179,7 @@ def _create_active_run(req: RunCreateRequest, agent: dict[str, Any]) -> dict[str
                 log_groups=["aws/spans", log_group],
                 session_ids=session_ids,
                 evaluators=evaluators,
+                session_metadata=ground_truth_metadata(scenarios, session_ids) or None,
             )
             batch_id = resp["batchEvaluationId"]
             db.update_run(run_id, batch_eval_id=batch_id)

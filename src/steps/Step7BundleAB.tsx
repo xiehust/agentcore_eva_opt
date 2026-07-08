@@ -197,7 +197,7 @@ export function Step7BundleAB() {
 
   return (
     <div>
-      <StepHeader index={8} title={t.steps.bundleAB.title} lede={t.steps.bundleAB.lede} learn={t.steps.bundleAB.learn} />
+      <StepHeader index={9} title={t.steps.bundleAB.title} lede={t.steps.bundleAB.lede} learn={t.steps.bundleAB.learn} />
 
       <div className="space-y-6">
         <div className="space-y-6">

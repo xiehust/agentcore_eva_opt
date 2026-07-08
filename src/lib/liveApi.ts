@@ -105,13 +105,71 @@ export interface DatasetItem {
   context?: string;
 }
 
+/** legacy = prompt list; predefined/simulated = devguide scenario schema. */
+export type DatasetKind = "legacy" | "predefined" | "simulated";
+
+export interface ScenarioTurn {
+  input: string;
+  expected_response?: string;
+}
+
+export interface ActorProfile {
+  context: string;
+  goal: string;
+  traits?: Record<string, string>;
+}
+
+/** Devguide dataset-schema scenario (predefined or simulated shape). */
+export interface Scenario {
+  scenario_id: string;
+  scenario_description?: string;
+  turns?: ScenarioTurn[];
+  expected_trajectory?: string[];
+  actor_profile?: ActorProfile;
+  input?: string;
+  max_turns?: number;
+  assertions?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+/** AWS Dataset resource info recorded after a sync-to-AWS. */
+export interface CloudDatasetInfo {
+  datasetId: string;
+  datasetArn?: string | null;
+  datasetName?: string;
+  status: string;
+  exampleCount?: number | null;
+  syncedAt?: number;
+}
+
+export interface CloudDatasetRow {
+  datasetId: string;
+  datasetArn?: string | null;
+  name: string;
+  description?: string | null;
+  status: string;
+  schemaType?: string | null;
+  exampleCount?: number | null;
+  createdAt?: string | null;
+  downloadUrl?: string | null;
+}
+
 export interface DatasetRecord {
   id: string;
   name: string;
   description: string;
-  items: DatasetItem[];
+  /** Legacy prompt items OR devguide scenarios, depending on `kind`. */
+  items: (DatasetItem | Scenario)[];
+  kind: DatasetKind;
+  cloud: CloudDatasetInfo | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** The prompt items of a legacy dataset ([] for scenario kinds). */
+export function legacyItems(dataset: Pick<DatasetRecord, "items" | "kind">): DatasetItem[] {
+  if (dataset.kind !== "legacy") return [];
+  return dataset.items as DatasetItem[];
 }
 
 export type RunStatus =
@@ -121,6 +179,20 @@ export type RunStatus =
   | "evaluating"
   | "completed"
   | "failed";
+
+export interface TranscriptEntry {
+  turn: number;
+  role: "user" | "agent" | "actor_reasoning";
+  text: string;
+}
+
+/** One simulated scenario's conversation, recorded by the actor loop. */
+export interface ScenarioTranscript {
+  scenario_id: string;
+  turns: number;
+  stopped_by: "goal" | "max_turns" | "no_message" | "parse_error";
+  transcript: TranscriptEntry[];
+}
 
 export interface RunRecord {
   id: string;
@@ -138,6 +210,8 @@ export interface RunRecord {
   jobId: string | null;
   /** "dataset" | "lookback:<hours>" | "sessions:<count>" */
   source: string;
+  /** Simulated-run conversations (per scenario); null otherwise. */
+  transcripts: ScenarioTranscript[] | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -229,6 +303,8 @@ export interface SampleDataset {
 
 export interface SampleDatasetEntry extends SampleDataset {
   key: string;
+  /** Present on scenario samples; absent means a legacy prompt list. */
+  kind?: DatasetKind;
 }
 
 // ─── Experiments (optimization flow) ───────────────────────────────────────
@@ -522,7 +598,13 @@ export class LiveApi {
   listDatasets() {
     return this.request<{ datasets: DatasetRecord[] }>("GET", "/datasets");
   }
-  createDataset(body: { name: string; description?: string; items: DatasetItem[] }) {
+  createDataset(body: {
+    name: string;
+    description?: string;
+    kind?: DatasetKind;
+    items?: DatasetItem[];
+    scenarios?: Scenario[];
+  }) {
     return this.request<DatasetRecord>("POST", "/datasets", body);
   }
   getDataset(id: string) {
@@ -530,12 +612,33 @@ export class LiveApi {
   }
   updateDataset(
     id: string,
-    body: Partial<Pick<DatasetRecord, "name" | "description" | "items">>,
+    body: {
+      name?: string;
+      description?: string;
+      items?: DatasetItem[];
+      scenarios?: Scenario[];
+    },
   ) {
     return this.request<DatasetRecord>("PUT", `/datasets/${id}`, body);
   }
   deleteDataset(id: string) {
     return this.request<{ ok: boolean }>("DELETE", `/datasets/${id}`);
+  }
+  /** Create the AWS Dataset resource from a local dataset (background job). */
+  syncDatasetToAws(id: string, body: { creds?: LiveCreds | null } = {}) {
+    return this.request<JobRef>("POST", `/datasets/${id}/sync-to-aws`, body);
+  }
+  listCloudDatasets(body: { creds?: LiveCreds | null } = {}) {
+    return this.request<{ datasets: CloudDatasetRow[] }>("POST", "/datasets/cloud/list", body);
+  }
+  getCloudDataset(cloudId: string, body: { creds?: LiveCreds | null } = {}) {
+    return this.request<CloudDatasetRow>("POST", `/datasets/cloud/${cloudId}/get`, body);
+  }
+  deleteCloudDataset(cloudId: string) {
+    return this.request<{ datasetId: string; deleted: boolean }>(
+      "DELETE",
+      `/datasets/cloud/${cloudId}`,
+    );
   }
 
   // ─── Console: runs ────────────────────────────────────────────────────
@@ -547,6 +650,8 @@ export class LiveApi {
     sessionIds?: string[];
     evaluators?: string[];
     waitSeconds?: number;
+    /** Actor model for user-simulation datasets (Bedrock model id). */
+    simulationModelId?: string;
     creds?: LiveCreds | null;
   }) {
     return this.request<{ runId: string; jobId: string }>("POST", "/runs", body);

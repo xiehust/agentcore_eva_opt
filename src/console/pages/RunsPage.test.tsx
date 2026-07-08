@@ -54,17 +54,65 @@ const PASSIVE_RUN = {
   source: "lookback:24",
 };
 
+const LEGACY_DATASET = {
+  id: "d-1",
+  name: "DS",
+  description: "",
+  items: [{ prompt: "p" }],
+  kind: "legacy",
+  cloud: null,
+  createdAt: 1,
+  updatedAt: 1,
+};
+
+const SIMULATED_DATASET = {
+  id: "d-sim",
+  name: "Personas",
+  description: "",
+  items: [
+    {
+      scenario_id: "p1",
+      actor_profile: { context: "c", goal: "g" },
+      input: "hello",
+      assertions: ["goal met"],
+    },
+  ],
+  kind: "simulated",
+  cloud: null,
+  createdAt: 2,
+  updatedAt: 2,
+};
+
+const SCENARIO_DATASET = {
+  id: "d-scn",
+  name: "Scenarios",
+  description: "",
+  items: [
+    {
+      scenario_id: "s1",
+      turns: [{ input: "q", expected_response: "a" }],
+      expected_trajectory: ["tool_a"],
+      assertions: ["did it"],
+    },
+  ],
+  kind: "predefined",
+  cloud: null,
+  createdAt: 3,
+  updatedAt: 3,
+};
+
 function stubFetch({
   agents = [DEPLOYED_AGENT, UNDEPLOYED_AGENT],
   runs = [COMPLETED_RUN],
-}: { agents?: unknown[]; runs?: unknown[] } = {}) {
+  datasets = [LEGACY_DATASET],
+}: { agents?: unknown[]; runs?: unknown[]; datasets?: unknown[] } = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const json = (body: unknown) => ({ ok: true, json: async () => body });
       if (url.endsWith("/agents")) return json({ agents });
-      if (url.endsWith("/datasets")) return json({ datasets: [{ id: "d-1", name: "DS", description: "", items: [{ prompt: "p" }], createdAt: 1, updatedAt: 1 }] });
+      if (url.endsWith("/datasets")) return json({ datasets });
       if (url.endsWith("/runs") && init?.method === "POST") return json({ runId: "r-new", jobId: "j-new" });
       if (url.endsWith("/runs")) return json({ runs });
       if (url.includes("/jobs/")) return json({ id: "j-new", state: "completed", result: {} });
@@ -173,5 +221,84 @@ describe("RunsPage", () => {
     expect(await screen.findByText("0.82")).toBeInTheDocument();
     expect(screen.getByText(/2 sessions/i)).toBeInTheDocument();
     expect(screen.getByText(/be-1/)).toBeInTheDocument();
+  });
+
+  it("shows the simulation config only for simulated datasets and sends its model id", async () => {
+    stubFetch({ datasets: [LEGACY_DATASET, SIMULATED_DATASET], runs: [] });
+    const fetchMock = vi.mocked(fetch);
+    renderPage();
+    // Wait for the dataset select to be populated (option text includes the kind tag).
+    await screen.findByText(/\[Simulated\] Personas/);
+    // Legacy dataset selected by default → no sim config.
+    expect(screen.queryByTestId("sim-config")).not.toBeInTheDocument();
+
+    const selects = screen.getAllByRole("combobox");
+    fireEvent.change(selects[1], { target: { value: "d-sim" } });
+    expect(await screen.findByTestId("sim-config")).toBeInTheDocument();
+
+    const modelInput = screen.getByTestId("sim-model-id") as HTMLInputElement;
+    expect(modelInput.value).toBe("global.anthropic.claude-haiku-4-5-20251001-v1:0");
+    fireEvent.change(modelInput, { target: { value: "my.actor-model" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /start run/i }));
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([u, i]) => String(u).endsWith("/runs") && (i as RequestInit)?.method === "POST",
+      );
+      expect(post).toBeTruthy();
+      const body = JSON.parse(String((post![1] as RequestInit).body));
+      expect(body.datasetId).toBe("d-sim");
+      expect(body.simulationModelId).toBe("my.actor-model");
+    });
+  });
+
+  it("maps ground-truth fields to evaluators for scenario datasets", async () => {
+    stubFetch({ datasets: [SCENARIO_DATASET], runs: [] });
+    renderPage();
+    const hints = await screen.findByTestId("gt-hints");
+    // Correctness + GoalSuccessRate are in the default trio; trajectory
+    // matchers are not selected, so only fields for CHECKED evaluators show.
+    expect(hints.textContent).toContain("Builtin.Correctness ← expected_response");
+    expect(hints.textContent).toContain("Builtin.GoalSuccessRate ← assertions");
+    expect(hints.textContent).not.toContain("TrajectoryExactOrderMatch");
+  });
+
+  it("renders simulated-conversation transcripts on run detail", async () => {
+    const simRun = {
+      ...COMPLETED_RUN,
+      id: "r-sim",
+      transcripts: [
+        {
+          scenario_id: "p1",
+          turns: 2,
+          stopped_by: "goal",
+          transcript: [
+            { turn: 1, role: "user", text: "hello there" },
+            { turn: 1, role: "agent", text: "hi, how can I help?" },
+            { turn: 1, role: "actor_reasoning", text: "agent greeted me, ask about leave" },
+            { turn: 2, role: "user", text: "book my leave" },
+            { turn: 2, role: "agent", text: "done!" },
+          ],
+        },
+      ],
+    };
+    stubFetch({ runs: [simRun] });
+    renderPage();
+    const transcripts = await screen.findByTestId("transcripts");
+    expect(transcripts.textContent).toContain("p1");
+    expect(transcripts.textContent).toContain("goal reached");
+    expect(transcripts.textContent).toContain("hello there");
+    expect(transcripts.textContent).toContain("agent greeted me, ask about leave");
+    // Roles rendered in order: user before agent before reasoning.
+    const text = transcripts.textContent!;
+    expect(text.indexOf("hello there")).toBeLessThan(text.indexOf("hi, how can I help?"));
+    expect(text.indexOf("hi, how can I help?")).toBeLessThan(text.indexOf("agent greeted me"));
+  });
+
+  it("shows no transcript section for runs without transcripts", async () => {
+    stubFetch();
+    renderPage();
+    await screen.findByText("0.82");
+    expect(screen.queryByTestId("transcripts")).not.toBeInTheDocument();
   });
 });

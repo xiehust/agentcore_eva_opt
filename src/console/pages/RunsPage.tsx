@@ -7,7 +7,8 @@ import { useResource } from "../../lib/useResource";
 import { useConsole } from "../../state/console";
 import { useLang } from "../../i18n/lang";
 import { BUILTIN_EVALUATORS, DEFAULT_EVALUATOR_IDS } from "../../data/evaluators";
-import type { RunRecord, RunStatus } from "../../lib/liveApi";
+import { DEFAULT_ACTOR_MODEL_ID, groundTruthHints } from "../../lib/groundTruth";
+import type { RunRecord, RunStatus, Scenario, ScenarioTranscript } from "../../lib/liveApi";
 
 const STATUS_VARIANT: Record<RunStatus, "neutral" | "warn" | "cyan" | "ok" | "danger"> = {
   pending: "neutral",
@@ -39,6 +40,7 @@ export function RunsPage() {
   const [sessionIdsText, setSessionIdsText] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set(DEFAULT_EVALUATOR_IDS));
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [simulationModelId, setSimulationModelId] = useState(DEFAULT_ACTOR_MODEL_ID);
 
   const toggleEvaluator = (id: string) => {
     setSelected((prev) => {
@@ -58,6 +60,14 @@ export function RunsPage() {
     (selectedAgent?.kind === "external" && Boolean(selectedAgent.binding?.invoke));
   const effectiveScope = scope === "dataset" && !canRunDataset ? "lookback" : scope;
   const effectiveDatasetId = datasetId || datasets.data?.datasets[0]?.id || "";
+  const selectedDataset = datasets.data?.datasets.find((d) => d.id === effectiveDatasetId);
+  const isSimulatedDataset = selectedDataset?.kind === "simulated";
+  const datasetScenarios: Scenario[] =
+    selectedDataset && selectedDataset.kind !== "legacy"
+      ? (selectedDataset.items as Scenario[])
+      : [];
+  const hints = effectiveScope === "dataset" ? groundTruthHints(datasetScenarios) : [];
+  const activeHints = hints.filter((h) => selected.has(h.evaluatorId));
   const parsedSessionIds = sessionIdsText
     .split("\n")
     .map((s) => s.trim())
@@ -141,6 +151,7 @@ export function RunsPage() {
                 {(datasets.data?.datasets ?? []).length === 0 && <option value="">—</option>}
                 {datasets.data?.datasets.map((d) => (
                   <option key={d.id} value={d.id}>
+                    {d.kind !== "legacy" ? `[${t.console.datasets.kinds[d.kind]}] ` : ""}
                     {d.name} ({t.console.datasets.itemCount(d.items.length)})
                   </option>
                 ))}
@@ -149,6 +160,22 @@ export function RunsPage() {
                 <span className="mt-1 block text-[11px] text-warn">{t.console.runs.noDatasets}</span>
               )}
             </label>
+          )}
+          {effectiveScope === "dataset" && isSimulatedDataset && (
+            <div className="rounded-md border border-aws-orange/30 bg-ink-750/60 p-4" data-testid="sim-config">
+              <span className="eyebrow mb-1 block">{t.console.runs.simConfigTitle}</span>
+              <label className="block sm:w-2/3">
+                <span className="mb-1 block text-[11px] text-fog-400">{t.console.runs.simModelLabel}</span>
+                <input
+                  value={simulationModelId}
+                  onChange={(e) => setSimulationModelId(e.target.value)}
+                  spellCheck={false}
+                  data-testid="sim-model-id"
+                  className={`${selectCls} font-mono text-xs`}
+                />
+              </label>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-fog-500">{t.console.runs.simCostNote}</p>
+            </div>
           )}
           {effectiveScope === "lookback" && (
             <label className="block sm:w-1/3">
@@ -220,6 +247,18 @@ export function RunsPage() {
                 </label>
               ))}
             </div>
+            {activeHints.length > 0 && (
+              <div className="mt-2 rounded-md border border-cyan/20 bg-ink-750/40 px-3 py-2" data-testid="gt-hints">
+                <span className="text-[11px] font-semibold text-cyan-soft">{t.console.runs.groundTruthTitle}</span>
+                <ul className="mt-1 space-y-0.5">
+                  {activeHints.map((h) => (
+                    <li key={h.evaluatorId} className="font-mono text-[11px] text-fog-400">
+                      {h.evaluatorId} ← {h.field}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div>
@@ -236,6 +275,8 @@ export function RunsPage() {
                   ...(effectiveScope === "dataset" && { datasetId: effectiveDatasetId }),
                   ...(effectiveScope === "lookback" && { lookbackHours }),
                   ...(effectiveScope === "sessions" && { sessionIds: parsedSessionIds }),
+                  ...(effectiveScope === "dataset" &&
+                    isSimulatedDataset && { simulationModelId: simulationModelId.trim() }),
                   evaluators: Array.from(selected),
                   creds: creds ?? null,
                 });
@@ -370,6 +411,62 @@ function RunDetail({ run }: { run: RunRecord }) {
       ) : (
         !run.error && <p className="text-sm text-fog-400">{t.console.runs.selectRun}</p>
       )}
+      {run.transcripts && run.transcripts.length > 0 && (
+        <TranscriptViewer transcripts={run.transcripts} />
+      )}
+    </div>
+  );
+}
+
+const STOP_TAG: Record<ScenarioTranscript["stopped_by"], { variant: "ok" | "warn" | "danger"; key: "goal" | "maxTurns" | "noMessage" | "parseError" }> = {
+  goal: { variant: "ok", key: "goal" },
+  max_turns: { variant: "warn", key: "maxTurns" },
+  no_message: { variant: "warn", key: "noMessage" },
+  parse_error: { variant: "danger", key: "parseError" },
+};
+
+/** Per-scenario simulated-conversation playback (actor reasoning muted). */
+function TranscriptViewer({ transcripts }: { transcripts: ScenarioTranscript[] }) {
+  const { t } = useLang();
+  return (
+    <div className="mt-4" data-testid="transcripts">
+      <span className="eyebrow mb-2 block">{t.console.runs.transcriptsEyebrow}</span>
+      <div className="space-y-2">
+        {transcripts.map((sc) => (
+          <details key={sc.scenario_id} className="rounded-md border border-line bg-ink-750/40 px-3 py-2">
+            <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm text-fog-200">
+              <span className="font-mono text-xs">{sc.scenario_id}</span>
+              <Badge variant={STOP_TAG[sc.stopped_by].variant} mono className="text-[10px]">
+                {t.console.runs.stopReasons[STOP_TAG[sc.stopped_by].key]}
+              </Badge>
+              <span className="font-mono text-[11px] text-fog-500">
+                {t.console.runs.turnCount(sc.turns)}
+              </span>
+            </summary>
+            <ol className="mt-2 space-y-1.5 border-t border-line/50 pt-2">
+              {sc.transcript.map((entry, i) => (
+                <li key={i} className="text-xs leading-relaxed">
+                  {entry.role === "actor_reasoning" ? (
+                    <p className="italic text-fog-500">
+                      <span className="font-mono text-[10px] uppercase tracking-wide">
+                        {t.console.runs.roleActorReasoning}:
+                      </span>{" "}
+                      {entry.text}
+                    </p>
+                  ) : (
+                    <p className={entry.role === "user" ? "text-aws-orange-soft" : "text-fog-200"}>
+                      <span className="font-mono text-[10px] uppercase tracking-wide text-fog-500">
+                        {entry.role === "user" ? t.console.runs.roleUser : t.console.runs.roleAgent} · T{entry.turn}:
+                      </span>{" "}
+                      {entry.text}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </details>
+        ))}
+      </div>
     </div>
   );
 }

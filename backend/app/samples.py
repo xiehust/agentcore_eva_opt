@@ -556,6 +556,124 @@ FAILURE_ZH_ITEMS: list[dict[str, str]] = [
 ]
 
 
+# ─── Scenario datasets (Dataset evaluation / User simulation) ───────────────
+# Devguide schema, snake_case. Tool names match hr_assistant_agent.py:
+# get_pto_balance, submit_pto_request, lookup_hr_policy, get_benefits_summary,
+# get_pay_stub.
+SCENARIO_DATASET: list[dict[str, Any]] = [
+    {
+        "scenario_id": "pto-balance-then-request",
+        "turns": [
+            {
+                "input": "Employee ID: EMP-001. What is my current PTO balance?",
+                "expected_response": "You have 15 days of PTO remaining.",
+            },
+            {
+                "input": (
+                    "Great — please request leave from 2026-08-04 to 2026-08-08 "
+                    "for a family vacation."
+                ),
+            },
+        ],
+        "expected_trajectory": ["get_pto_balance", "submit_pto_request"],
+        "assertions": [
+            "Agent reports the employee's PTO balance before submitting the request",
+            "Agent confirms the PTO request dates back to the employee",
+        ],
+    },
+    {
+        "scenario_id": "policy-question",
+        "turns": [
+            {
+                "input": "What exactly is the PTO rollover policy?",
+                "expected_response": (
+                    "Employees may roll over up to 5 unused PTO days into the "
+                    "next calendar year."
+                ),
+            }
+        ],
+        "expected_trajectory": ["lookup_hr_policy"],
+        "assertions": ["Agent cites the rollover limit from the HR policy"],
+    },
+    {
+        "scenario_id": "benefits-then-paystub",
+        "turns": [
+            {"input": "Employee ID: EMP-042. What are my health insurance options?"},
+            {
+                "input": "Also show me my January 2026 pay stub.",
+                "expected_response": (
+                    "Here is your January 2026 pay stub with gross pay, "
+                    "deductions, and net pay."
+                ),
+            },
+        ],
+        "expected_trajectory": ["get_benefits_summary", "get_pay_stub"],
+        "assertions": [
+            "Agent summarizes at least two health insurance plan options",
+            "Agent presents the pay stub for the requested period",
+        ],
+    },
+]
+
+SIMULATED_DATASET: list[dict[str, Any]] = [
+    {
+        "scenario_id": "frustrated-employee-leave",
+        "scenario_description": "A frustrated employee needs leave booked quickly",
+        "actor_profile": {
+            "traits": {
+                "expertise": "non-technical",
+                "tone": "frustrated but polite",
+                "patience": "low",
+            },
+            "context": (
+                "An employee (ID EMP-001) whose childcare fell through and who "
+                "must take next Monday through Wednesday off"
+            ),
+            "goal": "Get a PTO request submitted for the three days and receive a confirmation",
+        },
+        "input": "I really need time off next week and the portal keeps erroring. Can you help?",
+        "max_turns": 8,
+        "assertions": [
+            "Agent submits a PTO request covering the three requested days",
+            "Agent confirms the submission back to the employee",
+        ],
+    },
+    {
+        "scenario_id": "curious-new-hire-benefits",
+        "scenario_description": "A curious new hire explores benefits",
+        "actor_profile": {
+            "traits": {"expertise": "novice", "tone": "curious"},
+            "context": "A new hire in their first week who has not enrolled in any benefits yet",
+            "goal": "Understand the 401k match and at least one health insurance option",
+        },
+        "input": "Hi! I just joined — can you walk me through the benefits?",
+        "max_turns": 6,
+        "assertions": [
+            "Agent explains the 401k matching policy",
+            "Agent describes at least one health insurance plan",
+        ],
+    },
+    {
+        "scenario_id": "terse-manager-team-pto",
+        "scenario_description": "A terse manager checks PTO before approving a project",
+        "actor_profile": {
+            "traits": {"expertise": "expert", "tone": "terse", "patience": "medium"},
+            "context": (
+                "A manager (ID EMP-042) planning a September release who needs "
+                "their own PTO balance and the rollover rules"
+            ),
+            "goal": "Get their PTO balance and the rollover limit, nothing else",
+        },
+        "input": "PTO balance for EMP-042. And the rollover rule.",
+        "max_turns": 5,
+        "assertions": [
+            "Agent reports the PTO balance for EMP-042",
+            "Agent states the rollover limit",
+        ],
+    },
+]
+
+
 def sample_datasets() -> list[dict[str, Any]]:
     """All built-in sample datasets, each in English and Chinese variants."""
     return [
@@ -582,6 +700,27 @@ def sample_datasets() -> list[dict[str, Any]]:
                 "for an Insights failure-analysis report."
             ),
             "items": FAILURE_DATASET_ITEMS,
+        },
+        {
+            "key": "scenario",
+            "name": "HR scenario dataset (sample)",
+            "description": (
+                "3 predefined multi-turn scenarios with ground truth — "
+                "expected_response, expected_trajectory, and assertions — for "
+                "dataset evaluation."
+            ),
+            "kind": "predefined",
+            "items": SCENARIO_DATASET,
+        },
+        {
+            "key": "simulated",
+            "name": "HR simulated personas (sample)",
+            "description": (
+                "3 LLM-actor personas (frustrated employee, curious new hire, "
+                "terse manager) with goals and assertions for user simulation."
+            ),
+            "kind": "simulated",
+            "items": SIMULATED_DATASET,
         },
         {
             "key": "baseline-zh",

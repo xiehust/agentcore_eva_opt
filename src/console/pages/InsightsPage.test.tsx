@@ -38,6 +38,7 @@ const RUN: RunRecord = {
   error: null,
   jobId: null,
   source: "dataset",
+  transcripts: null,
   createdAt: 10,
   updatedAt: 10,
 };

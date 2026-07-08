@@ -97,7 +97,7 @@ export function Step6Bundles() {
 
   return (
     <div>
-      <StepHeader index={7} title={t.steps.bundles.title} lede={t.steps.bundles.lede} learn={t.steps.bundles.learn} />
+      <StepHeader index={8} title={t.steps.bundles.title} lede={t.steps.bundles.lede} learn={t.steps.bundles.learn} />
 
       <div className="space-y-6">
         <Card eyebrow={t.step6.controlEyebrow} title={t.step6.controlTitle} accent="none">

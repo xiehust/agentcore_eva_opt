@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Creds(BaseModel):
@@ -188,18 +188,92 @@ class TelemetryCheckRequest(CredsRequest):
     lookbackHours: int = 24
 
 
+# ─── Scenario datasets (AgentCore Dataset evaluation / User simulation) ─────
+# Field names mirror the devguide dataset schema verbatim (snake_case), so
+# scenarios copy-paste between this console and the AgentCore SDK.
+DatasetKind = Literal["legacy", "predefined", "simulated"]
+
+
+class ScenarioTurn(BaseModel):
+    """One turn of a predefined scenario."""
+
+    model_config = {"extra": "forbid"}
+
+    input: str = Field(min_length=1)
+    expected_response: str | None = None
+
+
+class ActorProfile(BaseModel):
+    """Who the simulated user is and what it wants to achieve."""
+
+    model_config = {"extra": "forbid"}
+
+    context: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+    traits: dict[str, str] = Field(default_factory=dict)
+
+
+class PredefinedScenario(BaseModel):
+    """Fixed sequence of turns, replayed exactly as written."""
+
+    model_config = {"extra": "forbid"}
+
+    scenario_id: str = Field(min_length=1)
+    turns: list[ScenarioTurn] = Field(min_length=1)
+    expected_trajectory: list[str] | None = None
+    assertions: list[str] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class SimulatedScenario(BaseModel):
+    """LLM-actor-driven scenario. No expected_trajectory / per-turn
+    expected_response — the conversation flow is not known in advance."""
+
+    model_config = {"extra": "forbid"}
+
+    scenario_id: str = Field(min_length=1)
+    scenario_description: str = ""
+    actor_profile: ActorProfile
+    input: str = Field(min_length=1)
+    max_turns: int = Field(default=10, ge=1, le=20)
+    assertions: list[str] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+def _validate_scenarios(kind: str, items: list[dict[str, Any]]) -> None:
+    """Validate scenario payloads for the non-legacy dataset kinds."""
+    model = PredefinedScenario if kind == "predefined" else SimulatedScenario
+    for item in items:
+        model.model_validate(item)
+
+
 class DatasetCreateRequest(BaseModel):
     name: str
     description: str = ""
-    items: list[DatasetItem]
+    kind: DatasetKind = "legacy"
+    # legacy → items; predefined/simulated → scenarios (devguide schema).
+    items: list[DatasetItem] | None = None
+    scenarios: list[dict[str, Any]] | None = None
+
+    @model_validator(mode="after")
+    def _check_payload(self) -> DatasetCreateRequest:
+        if self.kind == "legacy":
+            if not self.items:
+                raise ValueError("legacy datasets require non-empty items")
+        else:
+            if not self.scenarios:
+                raise ValueError(f"{self.kind} datasets require non-empty scenarios")
+            _validate_scenarios(self.kind, self.scenarios)
+        return self
 
 
 class DatasetUpdateRequest(BaseModel):
-    """Partial update — only provided fields change."""
+    """Partial update — only provided fields change (kind is immutable)."""
 
     name: str | None = None
     description: str | None = None
     items: list[DatasetItem] | None = None
+    scenarios: list[dict[str, Any]] | None = None
 
 
 class RunCreateRequest(CredsRequest):
@@ -217,6 +291,8 @@ class RunCreateRequest(CredsRequest):
     evaluators: list[str] | None = None
     # Traces need time to land in CloudWatch before batch evaluation can see them.
     waitSeconds: int = 90
+    # Actor model for user-simulation datasets (Bedrock model id). None → default.
+    simulationModelId: str | None = None
 
 
 class InsightReportCreateRequest(CredsRequest):

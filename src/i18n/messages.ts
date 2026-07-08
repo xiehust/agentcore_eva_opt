@@ -183,6 +183,30 @@ export interface Messages {
     emptyHint: string;
     levels: { SESSION: string; TRACE: string; TOOL_CALL: string };
   };
+  stepDatasetEval: {
+    datasetEyebrow: string;
+    datasetTitle: string;
+    datasetIntro: string;
+    turnCount: (n: number) => string;
+    runDatasetBtn: string;
+    datasetDone: string;
+    runnerNote: string;
+    resultsTitle: string;
+    failureNote: string;
+    simEyebrow: string;
+    simTitle: string;
+    simIntro: string;
+    goalLabel: string;
+    runSimBtn: string;
+    simDone: string;
+    simCostNote: string;
+    transcriptsTitle: string;
+    stopGoal: string;
+    stopMaxTurns: string;
+    roleActorReasoning: string;
+    continueBtn: string;
+    bridgeNote: string;
+  };
   stepInsights: {
     runEyebrow: string;
     runTitle: string;
@@ -467,6 +491,33 @@ export interface Messages {
       empty: string;
       itemsRequired: string;
       download: string;
+      /** Scenario datasets (Dataset evaluation / User simulation). */
+      kinds: { legacy: string; predefined: string; simulated: string };
+      newScenario: string;
+      newSimulated: string;
+      newScenarioName: string;
+      newSimulatedName: string;
+      scenarioDraftTitle: string;
+      createScenarioDataset: string;
+      scenarioCount: (scenarios: number, turns: number) => string;
+      scenarioJsonLabel: string;
+      simulatedJsonLabel: string;
+      scenarioSchemaHint: string;
+      simulatedSchemaHint: string;
+      invalidScenarios: (err: string) => string;
+      /** AWS cloud Dataset resources. */
+      cloudRowLabel: string;
+      notSynced: string;
+      syncToAws: string;
+      syncing: string;
+      syncStarting: string;
+      cloudExampleCount: (n: number) => string;
+      cloudEyebrow: string;
+      cloudTitle: string;
+      cloudHint: string;
+      cloudRefresh: string;
+      cloudNotLoaded: string;
+      cloudEmpty: string;
     };
     evaluators: {
       title: string;
@@ -530,6 +581,17 @@ export interface Messages {
       passiveStartedHint: string;
       sourceLookback: (h: number) => string;
       sourceSessions: (n: number) => string;
+      /** User simulation (LLM actor) + ground truth. */
+      simConfigTitle: string;
+      simModelLabel: string;
+      simCostNote: string;
+      groundTruthTitle: string;
+      transcriptsEyebrow: string;
+      turnCount: (n: number) => string;
+      roleUser: string;
+      roleAgent: string;
+      roleActorReasoning: string;
+      stopReasons: { goal: string; maxTurns: string; noMessage: string; parseError: string };
     };
     insights: {
       newEyebrow: string;
@@ -679,7 +741,7 @@ export const en: Messages = {
       "An interactive, fully-simulated walkthrough of the AgentCore optimization journey — deploy an HR Assistant, measure it, let the platform recommend improvements, then A/B test your way to a better agent. No AWS account required.",
     start: "Start the journey →",
     simulationMode: "simulation mode",
-    nineSteps: "10 steps",
+    nineSteps: "11 steps",
     statAgent: "Agent",
     statAgentValue: "HR Assistant",
     statEvaluators: "Built-in evaluators",
@@ -695,6 +757,7 @@ export const en: Messages = {
       ["Deploy", "Ship the HR Assistant to AgentCore Runtime"],
       ["Baseline", "Create the baseline bundle, send traffic, capture traces"],
       ["Evaluate", "Score goal success, helpfulness, correctness"],
+      ["Dataset Eval", "Scenario datasets + an LLM actor simulating real users"],
       ["Triage", "Insights explain WHY sessions fail and what users want"],
       ["Recommend", "Auto-improve the system prompt & tool descriptions"],
       ["Bundle", "Package control & treatment configuration bundles"],
@@ -839,6 +902,22 @@ export const en: Messages = {
         takeaway: "Baseline numbers are locked in. Now diagnose the failures behind them.",
       },
     },
+    datasetEval: {
+      title: "Dataset Evaluation & User Simulation",
+      shortTitle: "Dataset Eval",
+      lede: "Instead of hand-invoking the agent and scoring afterwards, a dataset runner drives the whole lifecycle from a scenario dataset — invoke, wait, evaluate — with ground truth attached. Then user simulation replaces scripted turns entirely: an LLM actor plays the user and converses until its goal is met.",
+      learn: {
+        purpose:
+          "Make evaluation repeatable and realistic. Scenario datasets turn ad-hoc testing into versioned regression suites: multi-turn conversations with expected responses, expected tool trajectories, and natural-language assertions that evaluators check automatically. User simulation adds what fixed scripts can't — realistic variation, different phrasings, and conversation paths you didn't author.",
+        points: [
+          ["Dataset runners", "The AgentCore SDK ships two: the on-demand runner collects spans and calls Evaluate client-side (dev-time, per-scenario detail); the batch runner delegates to StartBatchEvaluation (baselines, large datasets, aggregate scores). Same dataset schema for both."],
+          ["Ground truth mapping", "expected_response feeds Builtin.Correctness (per turn, positionally); assertions feed Builtin.GoalSuccessRate; expected_trajectory feeds the Trajectory*Match evaluators. Fields are optional — evaluators without ground truth fall back to content-only judging."],
+          ["Actor profiles", "A simulated scenario swaps turns for an actor_profile ({context, goal, traits}) plus an opening input. The actor LLM decides each next message — reasoning, message, stop — until the goal is met, max_turns is hit, or it goes silent. Traits control difficulty: an expert user asks harder questions than a novice."],
+          ["Simulated ≠ scripted", "Simulated scenarios can't carry expected_trajectory or per-turn expected_response — the path isn't known in advance. Assertions are the ground truth that survives dynamic conversations."],
+        ],
+        takeaway: "Scenario datasets give you regression suites; simulated actors give you realism. Both feed the same evaluators as Step 4.",
+      },
+    },
     insights: {
       title: "Failure Insights",
       shortTitle: "Insights",
@@ -936,6 +1015,36 @@ export const en: Messages = {
         takeaway: "Journey complete: measure → diagnose → recommend → verify → release safely → clean up. The loop is repeatable — that's the point.",
       },
     },
+  },
+  stepDatasetEval: {
+    datasetEyebrow: "Scenario dataset",
+    datasetTitle: "Run a dataset evaluation",
+    datasetIntro:
+      "Three HR scenarios in the devguide dataset schema — multi-turn conversations with expected responses, expected tool trajectories, and assertions. The batch dataset runner invokes each scenario as one session, waits for CloudWatch ingestion, then submits a batch evaluation with the ground truth attached.",
+    turnCount: (n) => `${n} turn${n === 1 ? "" : "s"}`,
+    runDatasetBtn: "Run dataset evaluation",
+    datasetDone: "Evaluated",
+    runnerNote:
+      "The runner drives invoke → wait → StartBatchEvaluation → poll in one call. Ground truth maps automatically: expected_response → Correctness, assertions → GoalSuccessRate, expected_trajectory → TrajectoryExactOrderMatch.",
+    resultsTitle: "Per-scenario results",
+    failureNote:
+      "benefits-then-paystub failed its trajectory: the agent answered the benefits question from memory instead of calling get_benefits_summary, and the pay stub never surfaced. Keep this failure in mind — the Insights step next diagnoses exactly this kind of behavior.",
+    simEyebrow: "User simulation",
+    simTitle: "Let an LLM actor play the user",
+    simIntro:
+      "Instead of fixed turns, each simulated scenario defines WHO the user is (actor_profile: context, goal, traits) and the opening message. The actor LLM reads every agent reply and decides its next move — private reasoning, the next message, and a stop signal once its goal is met.",
+    goalLabel: "Goal",
+    runSimBtn: "Run user simulation",
+    simDone: "Simulated",
+    simCostNote:
+      "In Live mode the actor invokes a Bedrock model each turn (standard model charges apply; SimulationConfig.model_id picks the actor). Here the conversations are pre-authored and deterministic.",
+    transcriptsTitle: "Simulated conversations (actor reasoning shown muted)",
+    stopGoal: "goal reached",
+    stopMaxTurns: "max turns",
+    roleActorReasoning: "actor reasoning",
+    continueBtn: "Continue to insights →",
+    bridgeNote:
+      "The trajectory failure above is a scored symptom — the Insights step reads the same sessions and explains the behavior behind it, with root causes and fixes.",
   },
   stepInsights: {
     runEyebrow: "Triage",
@@ -1040,11 +1149,11 @@ export const en: Messages = {
     levels: { SESSION: "session", TRACE: "trace", TOOL_CALL: "tool call" },
   },
   step5: {
-    spEyebrow: "Step 6a",
+    spEyebrow: "Step 7a",
     spTitle: "System prompt recommendation",
     spBtn: "Generate system-prompt recommendation",
     spBtnLive: "Generate system-prompt recommendation (real)",
-    tdEyebrow: "Step 6b",
+    tdEyebrow: "Step 7b",
     tdTitle: "Tool description recommendations",
     tdBtn: "Generate tool-description recommendations",
     tdBtnLive: "Generate tool-description recommendations (real)",
@@ -1076,18 +1185,18 @@ export const en: Messages = {
     continued: "Continued ✓",
   },
   step7: {
-    setupEyebrow: "Step 8a–d",
+    setupEyebrow: "Step 9a–d",
     setupTitle: "Set up gateway & A/B test",
     setupBtn: "Provision gateway + A/B test",
     setupBtnLive: "Provision gateway + A/B test (real)",
     setupDone: "A/B test LIVE",
-    trafficEyebrow: "Step 8e",
+    trafficEyebrow: "Step 9e",
     trafficTitle: "Send gateway traffic",
     sendBtn: "Send 20 gateway sessions",
     sendBtnLive: "Send 20 gateway sessions (real)",
     stickyHint:
       "Each session is assigned C or T1 by session ID and routed with the matching bundle. Assignment is sticky within a session.",
-    resultsEyebrow: "Step 8f",
+    resultsEyebrow: "Step 9f",
     resultsTitle: "A/B test results",
     monitorBtn: "Monitor results",
     monitorBtnLive: "Monitor results (real)",
@@ -1095,7 +1204,7 @@ export const en: Messages = {
     analysed: "analysed",
     controlLabel: "C · original prompt",
     treatmentLabel: "T1 · recommended prompt",
-    promoteEyebrow: "Step 8g",
+    promoteEyebrow: "Step 9g",
     promoteWinTitle: "Promote the winning config",
     promoteTitle: "Promote decision",
     t1Wins: "T1 wins",
@@ -1146,7 +1255,7 @@ export const en: Messages = {
         targetBased: "Higher — binary change",
       },
     ],
-    deployEyebrow: "Step 9a",
+    deployEyebrow: "Step 10a",
     deployTitle: "Deploy HR Assistant v2",
     deployBtn: "Deploy v2 (new tool + prompt)",
     deployBtnLive: "Deploy v2 (real — new tool + prompt)",
@@ -1154,21 +1263,21 @@ export const en: Messages = {
     v2Arn: "v2 runtime ARN",
     v2ToolNote: (tool) =>
       `+ ${tool} — new tool (6 total). Improved system prompt baked into the code.`,
-    canaryEyebrow: "Step 9b–d",
+    canaryEyebrow: "Step 10b–d",
     canaryTitle: "Canary A/B test",
     setupBtn: "Set up 90/10 target A/B test",
     setupBtnLive: "Set up 90/10 target A/B test (real)",
     canaryLive: "Canary LIVE",
     sendBtn: (n) => `Send ${n} target sessions`,
     sendBtnLive: (n) => `Send ${n} target sessions (real)`,
-    resultsEyebrow: "Step 9e",
+    resultsEyebrow: "Step 10e",
     resultsTitle: "Canary results — v1 vs v2",
     monitorBtn: "Monitor canary results",
     monitorBtnLive: "Monitor canary results (real)",
     resultsReady: "Results ready",
     v1Label: "v1 (Control · 90%)",
     v2Label: "v2 (Treatment · 10%)",
-    rolloutEyebrow: "Step 9f",
+    rolloutEyebrow: "Step 10f",
     rolloutTitle: "Phased rollout",
     rollout: { canary: "Canary", ramp: "Ramp", full: "Full" },
     rolloutNotes: {
@@ -1421,6 +1530,35 @@ export const en: Messages = {
       empty: "No datasets yet — create one from the HR sample, a blank table, or upload a file.",
       itemsRequired: "At least one item with a prompt is required",
       download: "Download JSON",
+      kinds: { legacy: "Prompt list", predefined: "Scenario", simulated: "Simulated" },
+      newScenario: "New scenario dataset",
+      newSimulated: "New simulated dataset",
+      newScenarioName: "New Scenario Dataset",
+      newSimulatedName: "New Simulated Dataset",
+      scenarioDraftTitle: "Scenario JSON (devguide dataset schema)",
+      createScenarioDataset: "Create dataset",
+      scenarioCount: (scenarios, turns) =>
+        `${scenarios} scenario${scenarios === 1 ? "" : "s"} · ${turns} turn${turns === 1 ? "" : "s"}`,
+      scenarioJsonLabel: "Scenarios (JSON)",
+      simulatedJsonLabel: "Simulated scenarios (JSON)",
+      scenarioSchemaHint:
+        "Predefined scenarios: {scenario_id, turns: [{input, expected_response?}], expected_trajectory?, assertions?}. Ground truth feeds Builtin.Correctness / Trajectory* / GoalSuccessRate.",
+      simulatedSchemaHint:
+        "Simulated scenarios: {scenario_id, actor_profile: {context, goal, traits?}, input, max_turns?, assertions?}. An LLM actor drives the conversation until the goal is met.",
+      invalidScenarios: (err) => `Invalid scenarios: ${err}`,
+      cloudRowLabel: "AWS copy",
+      notSynced: "Not synced to AWS",
+      syncToAws: "Sync to AWS",
+      syncing: "Syncing…",
+      syncStarting: "starting sync",
+      cloudExampleCount: (n) => `${n} example${n === 1 ? "" : "s"}`,
+      cloudEyebrow: "AWS account resources",
+      cloudTitle: "Cloud datasets (CreateDataset / ListDatasets)",
+      cloudHint:
+        "Real AWS Dataset resources in your account (public preview). Sync a local dataset above, or refresh to list what already exists. Deleting here calls DeleteDataset.",
+      cloudRefresh: "Refresh from AWS",
+      cloudNotLoaded: "Not loaded — press \"Refresh from AWS\" to list your account's datasets.",
+      cloudEmpty: "No datasets in this account/region yet.",
     },
     evaluators: {
       title: "Evaluators",
@@ -1487,6 +1625,22 @@ export const en: Messages = {
         "Starts a batch evaluation over traffic already in CloudWatch — no invocations. Only one batch evaluation can be active per account.",
       sourceLookback: (h) => `Lookback ${h}h`,
       sourceSessions: (n) => `${n} session${n === 1 ? "" : "s"} (explicit)`,
+      simConfigTitle: "User simulation (LLM actor)",
+      simModelLabel: "Actor model ID (Bedrock)",
+      simCostNote:
+        "An LLM actor plays the user for each persona and drives the conversation until its goal is met or max_turns is reached. Actor turns invoke Bedrock models and incur standard model charges.",
+      groundTruthTitle: "Ground truth from this dataset",
+      transcriptsEyebrow: "Simulated conversations",
+      turnCount: (n) => `${n} turn${n === 1 ? "" : "s"}`,
+      roleUser: "user",
+      roleAgent: "agent",
+      roleActorReasoning: "actor reasoning",
+      stopReasons: {
+        goal: "goal reached",
+        maxTurns: "max turns",
+        noMessage: "no message",
+        parseError: "parse error",
+      },
     },
     insights: {
       newEyebrow: "New insights report",
@@ -1643,7 +1797,7 @@ export const zh: Messages = {
       "AgentCore 优化之旅的交互式全仿真演练 — 部署一个 HR 助手，度量它的表现，让平台自动推荐改进，再通过 A/B 测试验证优化效果。无需 AWS 账号。",
     start: "开始旅程 →",
     simulationMode: "仿真模式",
-    nineSteps: "10 个步骤",
+    nineSteps: "11 个步骤",
     statAgent: "智能体",
     statAgentValue: "HR 助手",
     statEvaluators: "内置评估器",
@@ -1659,6 +1813,7 @@ export const zh: Messages = {
       ["部署", "将 HR 助手发布到 AgentCore Runtime"],
       ["基线", "创建基线配置包，发送代表性流量，采集追踪数据"],
       ["评估", "为目标达成率、有用性、正确性打分"],
+      ["数据集评估", "场景数据集回归 + LLM actor 模拟真实用户"],
       ["触诊", "洞察解释会话为何失败、用户想要什么"],
       ["推荐", "自动改进系统提示词与工具描述"],
       ["配置包", "打包对照组与实验组两份配置"],
@@ -1802,6 +1957,22 @@ export const zh: Messages = {
         takeaway: "基线数字锁定。接下来诊断数字背后的失败。",
       },
     },
+    datasetEval: {
+      title: "数据集评估与用户模拟",
+      shortTitle: "数据集评估",
+      lede: "不再手工调用 agent 再事后评分 — 数据集运行器（dataset runner）从场景数据集出发驱动完整生命周期：调用、等待、评估，并自动带上 ground truth。随后用户模拟更进一步：LLM 扮演用户（actor），持续对话直到目标达成。",
+      learn: {
+        purpose:
+          "让评估可复现、更真实。场景数据集把临时测试变成有版本的回归套件：多轮对话带期望回复、期望工具轨迹和自然语言断言，评估器自动核对。用户模拟补上脚本做不到的部分 — 真实的表达变化、不同的问法、你没编排过的对话路径。",
+        points: [
+          ["两种 runner", "AgentCore SDK 提供两个：on-demand runner 在客户端收集 span 并逐场景调用 Evaluate（开发期、逐场景细节）；batch runner 委托给 StartBatchEvaluation（基线、大数据集、聚合分数）。两者共用同一份数据集 schema。"],
+          ["Ground truth 映射", "expected_response 供给 Builtin.Correctness（按轮次位置对应）；assertions 供给 Builtin.GoalSuccessRate；expected_trajectory 供给 Trajectory*Match 系列。字段都是可选的 — 没有 ground truth 的评估器退回纯内容评审。"],
+          ["Actor profile", "模拟场景用 actor_profile（{context, goal, traits}）加一句开场 input 取代 turns。actor LLM 每轮决定下一步 — reasoning、message、stop — 直到目标达成、到达 max_turns 或不再发言。traits 控制难度：expert 用户比 novice 问得更刁钻。"],
+          ["模拟 ≠ 脚本", "模拟场景不能带 expected_trajectory 或逐轮 expected_response — 对话路径事先不可知。断言（assertions）是动态对话下仍然成立的 ground truth。"],
+        ],
+        takeaway: "场景数据集给你回归套件；模拟 actor 给你真实感。两者喂给的都是第 4 步那套评估器。",
+      },
+    },
     insights: {
       title: "失败洞察",
       shortTitle: "洞察",
@@ -1899,6 +2070,36 @@ export const zh: Messages = {
         takeaway: "整个流程走完：度量 → 诊断 → 推荐 → 验证 → 安全发布 → 清理。这个循环可以一直转下去 — 这正是它的意义。",
       },
     },
+  },
+  stepDatasetEval: {
+    datasetEyebrow: "场景数据集",
+    datasetTitle: "运行数据集评估",
+    datasetIntro:
+      "三个 HR 场景，使用 devguide 数据集 schema — 多轮对话带期望回复（expected_response）、期望工具轨迹（expected_trajectory）和断言（assertions）。batch dataset runner 把每个场景作为一个 session 调用，等待 CloudWatch 摄取，然后携带 ground truth 提交批量评估。",
+    turnCount: (n) => `${n} 轮`,
+    runDatasetBtn: "运行数据集评估",
+    datasetDone: "已评估",
+    runnerNote:
+      "runner 在一次调用里完成 invoke → wait → StartBatchEvaluation → poll。Ground truth 自动映射：expected_response → Correctness，assertions → GoalSuccessRate，expected_trajectory → TrajectoryExactOrderMatch。",
+    resultsTitle: "逐场景结果",
+    failureNote:
+      "benefits-then-paystub 的轨迹匹配失败：agent 没调用 get_benefits_summary 而是凭记忆回答了保险问题，工资单也没有给出。记住这个失败 — 下一步 Insights 诊断的正是这类行为。",
+    simEyebrow: "用户模拟",
+    simTitle: "让 LLM actor 扮演用户",
+    simIntro:
+      "模拟场景不写固定轮次，而是定义用户\"是谁\"（actor_profile：context、goal、traits）和开场白。actor LLM 读取 agent 的每次回复并决定下一步 — 私有推理（reasoning）、下一条消息（message）、目标达成时的停止信号（stop）。",
+    goalLabel: "目标",
+    runSimBtn: "运行用户模拟",
+    simDone: "已模拟",
+    simCostNote:
+      "Live 模式下 actor 每轮都会调用 Bedrock 模型（按标准模型价格计费；SimulationConfig.model_id 指定 actor 模型）。此处对话为预先编写、确定性回放。",
+    transcriptsTitle: "模拟对话（actor 推理以浅色显示）",
+    stopGoal: "goal reached",
+    stopMaxTurns: "max turns",
+    roleActorReasoning: "actor reasoning",
+    continueBtn: "继续前往洞察 →",
+    bridgeNote:
+      "上面的轨迹失败只是打了分的症状 — 下一步 Insights 会读取同一批 session，解释行为背后的根因并给出修复建议。",
   },
   stepInsights: {
     runEyebrow: "触诊",
@@ -2000,11 +2201,11 @@ export const zh: Messages = {
     levels: { SESSION: "会话级", TRACE: "轨迹级", TOOL_CALL: "工具调用级" },
   },
   step5: {
-    spEyebrow: "步骤 6a",
+    spEyebrow: "步骤 7a",
     spTitle: "系统提示词推荐",
     spBtn: "生成系统提示词推荐",
     spBtnLive: "生成系统提示词推荐（真实）",
-    tdEyebrow: "步骤 6b",
+    tdEyebrow: "步骤 7b",
     tdTitle: "工具描述推荐",
     tdBtn: "生成工具描述推荐",
     tdBtnLive: "生成工具描述推荐（真实）",
@@ -2035,18 +2236,18 @@ export const zh: Messages = {
     continued: "已继续 ✓",
   },
   step7: {
-    setupEyebrow: "步骤 8a–d",
+    setupEyebrow: "步骤 9a–d",
     setupTitle: "搭建网关与 A/B 测试",
     setupBtn: "创建网关 + A/B 测试",
     setupBtnLive: "创建网关 + A/B 测试（真实）",
     setupDone: "A/B 测试运行中",
-    trafficEyebrow: "步骤 8e",
+    trafficEyebrow: "步骤 9e",
     trafficTitle: "发送网关流量",
     sendBtn: "发送 20 个网关会话",
     sendBtnLive: "发送 20 个网关会话（真实）",
     stickyHint:
       "每个会话按会话 ID 被分配到 C 或 T1，并以对应的配置包路由。同一会话内分配保持粘性。",
-    resultsEyebrow: "步骤 8f",
+    resultsEyebrow: "步骤 9f",
     resultsTitle: "A/B 测试结果",
     monitorBtn: "监控结果",
     monitorBtnLive: "监控结果（真实）",
@@ -2054,7 +2255,7 @@ export const zh: Messages = {
     analysed: "已分析",
     controlLabel: "C · 原始提示词",
     treatmentLabel: "T1 · 推荐提示词",
-    promoteEyebrow: "步骤 8g",
+    promoteEyebrow: "步骤 9g",
     promoteWinTitle: "提升胜出配置",
     promoteTitle: "提升决策",
     t1Wins: "T1 胜出",
@@ -2104,28 +2305,28 @@ export const zh: Messages = {
         targetBased: "较高 — 二元切换",
       },
     ],
-    deployEyebrow: "步骤 9a",
+    deployEyebrow: "步骤 10a",
     deployTitle: "部署 HR 助手 v2",
     deployBtn: "部署 v2（新工具 + 提示词）",
     deployBtnLive: "部署 v2（真实 — 新工具 + 提示词）",
     deployed: "v2 已部署",
     v2Arn: "v2 运行时 ARN",
     v2ToolNote: (tool) => `+ ${tool} — 新工具（共 6 个）。改进的系统提示词已内置到代码中。`,
-    canaryEyebrow: "步骤 9b–d",
+    canaryEyebrow: "步骤 10b–d",
     canaryTitle: "金丝雀 A/B 测试",
     setupBtn: "创建 90/10 目标 A/B 测试",
     setupBtnLive: "创建 90/10 目标 A/B 测试（真实）",
     canaryLive: "金丝雀运行中",
     sendBtn: (n) => `发送 ${n} 个目标会话`,
     sendBtnLive: (n) => `发送 ${n} 个目标会话（真实）`,
-    resultsEyebrow: "步骤 9e",
+    resultsEyebrow: "步骤 10e",
     resultsTitle: "金丝雀结果 — v1 vs v2",
     monitorBtn: "监控金丝雀结果",
     monitorBtnLive: "监控金丝雀结果（真实）",
     resultsReady: "结果就绪",
     v1Label: "v1（对照 · 90%）",
     v2Label: "v2（实验 · 10%）",
-    rolloutEyebrow: "步骤 9f",
+    rolloutEyebrow: "步骤 10f",
     rolloutTitle: "分阶段放量",
     rollout: { canary: "金丝雀", ramp: "放量", full: "全量" },
     rolloutNotes: {
@@ -2364,6 +2565,34 @@ export const zh: Messages = {
       empty: "还没有数据集 — 可从 HR 样例克隆、新建空白表格，或上传文件。",
       itemsRequired: "至少需要一条包含 prompt 的数据",
       download: "下载 JSON",
+      kinds: { legacy: "Prompt 列表", predefined: "Scenario", simulated: "Simulated" },
+      newScenario: "新建 Scenario 数据集",
+      newSimulated: "新建 Simulated 数据集",
+      newScenarioName: "New Scenario Dataset",
+      newSimulatedName: "New Simulated Dataset",
+      scenarioDraftTitle: "Scenario JSON（devguide 数据集 schema）",
+      createScenarioDataset: "创建数据集",
+      scenarioCount: (scenarios, turns) => `${scenarios} 个场景 · ${turns} 轮对话`,
+      scenarioJsonLabel: "Scenarios（JSON）",
+      simulatedJsonLabel: "Simulated scenarios（JSON）",
+      scenarioSchemaHint:
+        "预定义场景：{scenario_id, turns: [{input, expected_response?}], expected_trajectory?, assertions?}。Ground truth 会输入 Builtin.Correctness / Trajectory* / GoalSuccessRate。",
+      simulatedSchemaHint:
+        "模拟场景：{scenario_id, actor_profile: {context, goal, traits?}, input, max_turns?, assertions?}。LLM 扮演用户持续对话直到目标达成。",
+      invalidScenarios: (err) => `Scenario 校验失败：${err}`,
+      cloudRowLabel: "AWS 云端副本",
+      notSynced: "尚未同步到 AWS",
+      syncToAws: "同步到 AWS",
+      syncing: "同步中…",
+      syncStarting: "starting sync",
+      cloudExampleCount: (n) => `${n} 条示例`,
+      cloudEyebrow: "AWS 账户资源",
+      cloudTitle: "云端数据集（CreateDataset / ListDatasets）",
+      cloudHint:
+        "账户中的真实 AWS Dataset 资源（公开预览）。可将上方本地数据集同步上去，或刷新列出已有资源。此处删除会调用 DeleteDataset。",
+      cloudRefresh: "从 AWS 刷新",
+      cloudNotLoaded: "尚未加载 — 点击“从 AWS 刷新”列出账户中的数据集。",
+      cloudEmpty: "该账户/区域还没有数据集。",
     },
     evaluators: {
       title: "评估器",
@@ -2428,6 +2657,22 @@ export const zh: Messages = {
         "对已落入 CloudWatch 的流量启动批量评估 — 不发起调用。每个账号同时只能有一个活跃的批量评估。",
       sourceLookback: (h) => `回看 ${h} 小时`,
       sourceSessions: (n) => `${n} 个指定会话`,
+      simConfigTitle: "用户模拟（LLM actor）",
+      simModelLabel: "Actor 模型 ID（Bedrock）",
+      simCostNote:
+        "LLM actor 会扮演每个 persona 的用户，持续对话直到目标达成或到达 max_turns。actor 每轮都会调用 Bedrock 模型，按标准模型价格计费。",
+      groundTruthTitle: "该数据集提供的 Ground truth",
+      transcriptsEyebrow: "模拟对话记录",
+      turnCount: (n) => `${n} 轮`,
+      roleUser: "user",
+      roleAgent: "agent",
+      roleActorReasoning: "actor reasoning",
+      stopReasons: {
+        goal: "goal reached",
+        maxTurns: "max turns",
+        noMessage: "no message",
+        parseError: "parse error",
+      },
     },
     insights: {
       newEyebrow: "新建洞察报告",

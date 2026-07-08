@@ -195,7 +195,7 @@ export function Step8TargetAB() {
 
   return (
     <div>
-      <StepHeader index={9} title={t.steps.targetAB.title} lede={t.steps.targetAB.lede} learn={t.steps.targetAB.learn} />
+      <StepHeader index={10} title={t.steps.targetAB.title} lede={t.steps.targetAB.lede} learn={t.steps.targetAB.learn} />
 
       <div className="space-y-6">
         {/* Routing comparison table */}

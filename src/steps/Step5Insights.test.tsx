@@ -26,10 +26,10 @@ describe("data: simulated insights", () => {
   });
 });
 
-describe("journey: 10-step order with insights", () => {
+describe("journey: 11-step order with insights", () => {
   it("insights sits between eval and recommend", () => {
-    expect(STEP_ORDER).toHaveLength(10);
-    expect(STEP_ORDER.indexOf("insights")).toBe(STEP_ORDER.indexOf("eval") + 1);
+    expect(STEP_ORDER).toHaveLength(11);
+    expect(STEP_ORDER.indexOf("insights")).toBe(STEP_ORDER.indexOf("datasetEval") + 1);
     expect(STEP_ORDER.indexOf("recommend")).toBe(STEP_ORDER.indexOf("insights") + 1);
     expect(initialState().status.insights).toBe("locked");
   });
@@ -67,9 +67,10 @@ describe("persistence: old 9-step snapshot migration", () => {
     expect((m.status as Record<string, string>).insights).toBe("locked");
   });
 
-  it("leaves new snapshots untouched", () => {
+  it("leaves fully-new snapshots untouched", () => {
     const s = base();
     (s.status as Record<string, string>).insights = "active";
+    (s.status as Record<string, string>).datasetEval = "done";
     expect(migrateSnapshot(s)).toBe(s);
   });
 });

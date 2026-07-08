@@ -169,11 +169,13 @@ def start_batch_evaluation(
     session_ids: list[str] | None = None,
     evaluators: list[str] | None = None,
     time_range: dict[str, Any] | None = None,
+    session_metadata: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Score sessions with evaluators. Scope with explicit ``session_ids``
     (a run's own traffic) or a ``time_range`` {startTime, endTime} over the
     agent's existing traffic (passive evaluation) — same filterConfig shape
-    as insights."""
+    as insights. ``session_metadata`` carries per-session scenario ground
+    truth via ``evaluationMetadata.sessionMetadata``."""
     filter_config: dict[str, Any] = {}
     if session_ids:
         filter_config["sessionIds"] = session_ids
@@ -185,12 +187,15 @@ def start_batch_evaluation(
     }
     if filter_config:
         cw["filterConfig"] = filter_config
-    return client.start_batch_evaluation(
-        batchEvaluationName=name,
-        evaluators=[{"evaluatorId": e} for e in (evaluators or BUILTIN_EVALUATORS)],
-        dataSourceConfig={"cloudWatchLogs": cw},
-        clientToken=str(uuid.uuid4()),
-    )
+    kwargs: dict[str, Any] = {
+        "batchEvaluationName": name,
+        "evaluators": [{"evaluatorId": e} for e in (evaluators or BUILTIN_EVALUATORS)],
+        "dataSourceConfig": {"cloudWatchLogs": cw},
+        "clientToken": str(uuid.uuid4()),
+    }
+    if session_metadata:
+        kwargs["evaluationMetadata"] = {"sessionMetadata": session_metadata}
+    return client.start_batch_evaluation(**kwargs)
 
 
 def get_batch_evaluation(client: Any, *, batch_id: str) -> dict[str, Any]:
@@ -673,3 +678,91 @@ def diff_configs(
         "changedKeyCount": (1 if a_prompt.strip() != b_prompt.strip() else 0)
         + len(tool_diffs),
     }
+
+
+# ─── Evaluation datasets (control plane, public preview) ────────────────────
+# CreateDataset/GetDataset/ListDatasets/DeleteDataset — the devguide "Manage
+# datasets" lifecycle. Dataset names share the batch-eval name constraint:
+# ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ (no hyphens).
+DATASET_SCHEMA_TYPES = {
+    "legacy": "AGENTCORE_EVALUATION_PREDEFINED_V1",
+    "predefined": "AGENTCORE_EVALUATION_PREDEFINED_V1",
+    "simulated": "AGENTCORE_EVALUATION_SIMULATED_V1",
+}
+
+DATASET_TERMINAL = {"ACTIVE", "CREATE_FAILED"}
+
+
+def sanitize_dataset_name(name: str) -> str:
+    """Coerce any display name into ^[a-zA-Z][a-zA-Z0-9_]{0,47}$."""
+    cleaned = "".join(ch if ch.isascii() and (ch.isalnum() or ch == "_") else "_" for ch in name)
+    cleaned = cleaned.strip("_")
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    if not cleaned or not cleaned[0].isalpha():
+        cleaned = f"ds_{cleaned}" if cleaned else f"ds_{uuid.uuid4().hex[:8]}"
+    return cleaned[:48]
+
+
+def create_dataset(
+    client: Any,
+    *,
+    name: str,
+    schema_type: str,
+    examples: list[dict[str, Any]],
+    description: str = "",
+) -> dict[str, Any]:
+    """CreateDataset with inline examples (async — poll to ACTIVE after)."""
+    kwargs: dict[str, Any] = {
+        "datasetName": name,
+        "schemaType": schema_type,
+        "source": {"inlineExamples": {"examples": examples}},
+        "clientToken": str(uuid.uuid4()),
+    }
+    if description:
+        kwargs["description"] = description
+    return client.create_dataset(**kwargs)
+
+
+def get_dataset(client: Any, *, dataset_id: str) -> dict[str, Any]:
+    return client.get_dataset(datasetId=dataset_id)
+
+
+def list_datasets(client: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    token: str | None = None
+    while True:
+        kwargs = {"nextToken": token} if token else {}
+        resp = client.list_datasets(**kwargs)
+        out.extend(resp.get("datasets", []))
+        token = resp.get("nextToken")
+        if not token:
+            return out
+
+
+def delete_dataset(client: Any, *, dataset_id: str) -> dict[str, Any]:
+    return client.delete_dataset(datasetId=dataset_id)
+
+
+def poll_dataset_active(
+    client: Any,
+    *,
+    dataset_id: str,
+    progress: Any = None,
+    sleeper: Any = time.sleep,
+    interval: float = 2.0,
+    max_polls: int = 60,
+) -> dict[str, Any]:
+    """Poll GetDataset until ACTIVE. Raises on CREATE_FAILED / timeout."""
+    for _ in range(max_polls):
+        result = client.get_dataset(datasetId=dataset_id)
+        status = result.get("status")
+        if progress:
+            progress(f"dataset status: {status}")
+        if status == "ACTIVE":
+            return result
+        if status == "CREATE_FAILED":
+            reason = result.get("failureReason") or "unknown failure"
+            raise RuntimeError(f"dataset creation failed: {reason}")
+        sleeper(interval)
+    raise TimeoutError(f"dataset {dataset_id} not ACTIVE after {max_polls} polls")

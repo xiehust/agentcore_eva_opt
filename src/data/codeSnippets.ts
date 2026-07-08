@@ -1,14 +1,15 @@
 /**
  * Read-only boto3 snippets mirroring the Lab 4 notebook cells. Keyed by the
- * 10 step keys (see steps manifest). Shown in each step's "Code view" so the
+ * 11 step keys (see steps manifest). Shown in each step's "Code view" so the
  * simulation doubles as an API reference. Faithful to the notebook, trimmed
- * for readability.
+ * for readability. (datasetEval shows the AgentCore SDK dataset runners.)
  */
 export type StepKey =
   | "config"
   | "deploy"
   | "baseline"
   | "eval"
+  | "datasetEval"
   | "insights"
   | "recommend"
   | "bundles"
@@ -74,6 +75,61 @@ eval_resp = agentcore.start_batch_evaluation(
     clientToken=str(uuid.uuid4()),
 )
 result = agentcore.get_batch_evaluation(batchEvaluationId=eval_resp["batchEvaluationId"])`,
+
+  datasetEval: `# Dataset evaluation (public preview): a dataset runner drives the whole
+# lifecycle — invoke each scenario, wait for telemetry, evaluate.
+from bedrock_agentcore.evaluation import (
+    BatchEvaluationRunner, BatchEvaluationRunConfig, BatchEvaluatorConfig,
+    CloudWatchDataSourceConfig, SimulationConfig,
+    Dataset, PredefinedScenario, Turn, SimulatedScenario, ActorProfile,
+)
+
+dataset = Dataset(scenarios=[
+    # Predefined: fixed turns + ground truth (Correctness / Trajectory* / GSR)
+    PredefinedScenario(
+        scenario_id="pto-balance-then-request",
+        turns=[
+            Turn(input="What is my current PTO balance?",
+                 expected_response="You have 15 days of PTO remaining."),
+            Turn(input="Request leave from 2026-08-04 to 2026-08-08."),
+        ],
+        expected_trajectory=["get_pto_balance", "submit_pto_request"],
+        assertions=["Agent confirms the PTO request dates"],
+    ),
+    # Simulated: an LLM actor plays the user until its goal is met
+    SimulatedScenario(
+        scenario_id="frustrated-employee-leave",
+        actor_profile=ActorProfile(
+            traits={"tone": "frustrated but polite", "patience": "low"},
+            context="An employee whose childcare fell through",
+            goal="Get a PTO request submitted and confirmed",
+        ),
+        input="I really need time off next week. Can you help?",
+        max_turns=8,
+        assertions=["Agent submits a PTO request"],
+    ),
+])
+
+config = BatchEvaluationRunConfig(
+    batch_evaluation_name=f"HRDatasetEval{SUFFIX}",
+    evaluator_config=BatchEvaluatorConfig(evaluator_ids=[
+        "Builtin.GoalSuccessRate", "Builtin.Correctness",
+        "Builtin.TrajectoryExactOrderMatch", "Builtin.Helpfulness",
+    ]),
+    data_source=CloudWatchDataSourceConfig(
+        service_names=[SERVICE_NAME], log_group_names=[LOG_GROUP],
+        ingestion_delay_seconds=180,
+    ),
+    simulation_config=SimulationConfig(       # actor LLM for SimulatedScenario
+        model_id="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    ),
+)
+
+runner = BatchEvaluationRunner(region=REGION)
+result = runner.run_dataset_evaluation(
+    config=config, dataset=dataset, agent_invoker=agent_invoker,
+)
+# result.evaluation_results.evaluator_summaries → per-evaluator averages`,
 
   insights: `# Insights reuse the batch-evaluation API: pass insights= INSTEAD of
 # evaluators= (they are mutually exclusive; max one active job per account).

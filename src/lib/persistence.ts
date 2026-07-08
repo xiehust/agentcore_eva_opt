@@ -61,21 +61,25 @@ export function isValidSnapshot(v: unknown): v is PersistedJourney {
 }
 
 /**
- * Migrate snapshots saved before a step existed. The "insights" step was
- * inserted between "eval" and "recommend" — old 9-step snapshots lack its
- * status key, so derive it: anyone who had reached recommendations has
- * effectively passed the triage step (it stays navigable as "done");
- * everyone else keeps it locked.
+ * Migrate snapshots saved before a step existed. Two insertions compose, in
+ * chronological order:
+ *  1. "insights" was inserted between "eval" and "recommend" — 9-step
+ *     snapshots lack its status key; anyone who had reached recommendations
+ *     has effectively passed the triage step ("done"), else it stays locked.
+ *  2. "datasetEval" was inserted between "eval" and "insights" — 10-step
+ *     snapshots lack ITS key; anyone past eval (insights unlocked) has
+ *     effectively passed it, else it stays locked.
  */
 export function migrateSnapshot(s: PersistedJourney): PersistedJourney {
-  const status = s.status as Record<string, string | undefined>;
-  if (status.insights !== undefined) return s;
-  const recommend = status.recommend ?? "locked";
-  return {
-    ...s,
-    status: {
-      ...s.status,
-      insights: recommend === "locked" ? "locked" : "done",
-    } as PersistedJourney["status"],
-  };
+  let status = s.status as Record<string, string | undefined>;
+  if (status.insights === undefined) {
+    const recommend = status.recommend ?? "locked";
+    status = { ...status, insights: recommend === "locked" ? "locked" : "done" };
+  }
+  if (status.datasetEval === undefined) {
+    const insights = status.insights ?? "locked";
+    status = { ...status, datasetEval: insights === "locked" ? "locked" : "done" };
+  }
+  if (status === (s.status as Record<string, string | undefined>)) return s;
+  return { ...s, status: status as PersistedJourney["status"] };
 }

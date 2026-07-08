@@ -43,6 +43,11 @@ def data(session: boto3.Session):
     return session.client("bedrock-agentcore")
 
 
+def bedrock_runtime(session: boto3.Session):
+    """bedrock-runtime client (Converse API — user-simulation actor LLM)."""
+    return session.client("bedrock-runtime")
+
+
 def sts(session: boto3.Session):
     return session.client("sts")
 

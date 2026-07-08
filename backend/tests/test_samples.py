@@ -89,6 +89,8 @@ def test_sample_datasets_list() -> None:
         "gateway",
         "target",
         "failure",
+        "scenario",
+        "simulated",
         "baseline-zh",
         "gateway-zh",
         "target-zh",
@@ -99,6 +101,8 @@ def test_sample_datasets_list() -> None:
         assert len(by_key[key]["items"]) == n
         assert len(by_key[f"{key}-zh"]["items"]) == n
     for d in datasets:
+        if d.get("kind") in ("predefined", "simulated"):
+            continue  # scenario samples hold devguide scenarios, not prompt items
         for item in d["items"]:
             assert item["prompt"]
             if "context" in item:
