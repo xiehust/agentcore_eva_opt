@@ -124,27 +124,68 @@ class AgentConfig(BaseModel):
     toolDescriptions: dict[str, str] = Field(default_factory=dict)
 
 
+class InvokeConfig(BaseModel):
+    """How to send dataset traffic to an external agent over HTTP.
+
+    ``payloadTemplate`` carries literal ``{prompt}`` / ``{sessionId}`` tokens
+    that are replaced with JSON-encoded values at invocation time. Header
+    values may include user-supplied auth tokens — they are stored in the
+    local SQLite DB (never logged), unlike AWS creds which are never stored.
+    """
+
+    url: str
+    method: Literal["POST"] = "POST"
+    payloadTemplate: str = '{"prompt": {prompt}, "sessionId": {sessionId}}'
+    sessionHeader: str = "X-Session-Id"
+    headers: dict[str, str] = Field(default_factory=dict)
+    timeoutSeconds: int = 60
+
+
+class AgentBinding(BaseModel):
+    """Telemetry binding for an external agent: where its OTEL traces land.
+
+    ``serviceName`` is the agent's OTEL ``service.name``; ``logGroup`` is the
+    CloudWatch log group named in ``aws.log.group.names``. Evaluations read
+    spans from ``aws/spans`` + this log group — no AgentCore runtime needed.
+    """
+
+    serviceName: str
+    logGroup: str
+    region: str | None = None
+    invoke: InvokeConfig | None = None
+
+
 class AgentCreateRequest(BaseModel):
     name: str
     description: str = ""
-    code: str
+    # External agents carry no code — they are registered, not deployed.
+    code: str = ""
     # Extra pip requirements appended to the fixed base set at deploy time.
     requirements: list[str] = Field(default_factory=list)
     config: AgentConfig | None = None
+    kind: Literal["managed", "external"] = "managed"
+    binding: AgentBinding | None = None
 
 
 class AgentUpdateRequest(BaseModel):
-    """Partial update — only provided fields change."""
+    """Partial update — only provided fields change (kind is immutable)."""
 
     name: str | None = None
     description: str | None = None
     code: str | None = None
     requirements: list[str] | None = None
     config: AgentConfig | None = None
+    binding: AgentBinding | None = None
 
 
 class AgentDeployRequest(CredsRequest):
     region: str | None = None
+
+
+class TelemetryCheckRequest(CredsRequest):
+    """Probe CloudWatch for an agent's spans over a lookback window."""
+
+    lookbackHours: int = 24
 
 
 class DatasetCreateRequest(BaseModel):
@@ -162,8 +203,16 @@ class DatasetUpdateRequest(BaseModel):
 
 
 class RunCreateRequest(CredsRequest):
+    """Evaluation run. Scope with EXACTLY ONE of:
+    * ``datasetId``      — active: invoke the agent per item, then evaluate.
+    * ``lookbackHours``  — passive: evaluate existing traffic in a time window.
+    * ``sessionIds``     — passive: evaluate these exact sessions.
+    """
+
     agentId: str
-    datasetId: str
+    datasetId: str | None = None
+    lookbackHours: int | None = None
+    sessionIds: list[str] | None = None
     # Evaluator IDs (built-in "Builtin.X" and/or custom ids). None → default trio.
     evaluators: list[str] | None = None
     # Traces need time to land in CloudWatch before batch evaluation can see them.

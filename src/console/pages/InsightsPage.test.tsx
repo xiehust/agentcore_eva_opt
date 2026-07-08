@@ -17,6 +17,8 @@ const AGENT: AgentRecord = {
     serviceName: "X.DEFAULT",
   },
   config: null,
+  kind: "managed",
+  binding: null,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -35,6 +37,7 @@ const RUN: RunRecord = {
   status: "completed",
   error: null,
   jobId: null,
+  source: "dataset",
   createdAt: 10,
   updatedAt: 10,
 };

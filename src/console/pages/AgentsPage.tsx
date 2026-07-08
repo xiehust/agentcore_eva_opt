@@ -7,6 +7,8 @@ import { useConsole } from "../../state/console";
 import { useLang } from "../../i18n/lang";
 import type { AgentConfig, AgentRecord } from "../../lib/liveApi";
 import { LazyCodeEditor } from "../LazyCodeEditor";
+import { RegisterExternalForm } from "./RegisterExternalForm";
+import { TelemetryCheckPanel } from "./TelemetryCheckPanel";
 
 const BASE_DEPS = ["strands-agents[otel]", "bedrock-agentcore", "aws-opentelemetry-distro"];
 
@@ -46,6 +48,9 @@ export function AgentsPage() {
 }
 
 function deployBadge(agent: AgentRecord, t: ReturnType<typeof useLang>["t"]) {
+  if (agent.kind === "external") {
+    return <Badge variant="cyan" mono>{t.console.agents.externalBadge}</Badge>;
+  }
   const status = agent.deployment?.status;
   if (status === "deployed") return <Badge variant="ok" dot mono>{t.console.agents.deployed}</Badge>;
   if (status === "deploying") return <Badge variant="warn" dot pulse mono>{t.console.agents.deploying}</Badge>;
@@ -62,6 +67,8 @@ function AgentList() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const [editingExternal, setEditingExternal] = useState<string | null>(null);
 
   const createFrom = async (
     fn: () => Promise<{
@@ -92,6 +99,31 @@ function AgentList() {
     }));
   };
 
+  if (registering) {
+    return (
+      <RegisterExternalForm
+        onDone={() => {
+          setRegistering(false);
+          agents.reload();
+        }}
+        onCancel={() => setRegistering(false)}
+      />
+    );
+  }
+  const externalBeingEdited = agents.data?.agents.find((a) => a.id === editingExternal);
+  if (externalBeingEdited) {
+    return (
+      <RegisterExternalForm
+        agent={externalBeingEdited}
+        onDone={() => {
+          setEditingExternal(null);
+          agents.reload();
+        }}
+        onCancel={() => setEditingExternal(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <Card
@@ -114,6 +146,9 @@ function AgentList() {
             </Button>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => fileInput.current?.click()}>
               {t.console.agents.uploadPy}
+            </Button>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => setRegistering(true)}>
+              {t.console.agents.registerExternal}
             </Button>
             <input
               ref={fileInput}
@@ -148,9 +183,17 @@ function AgentList() {
                   <div className="flex items-center gap-2">
                     <span className="font-display text-sm font-semibold text-fog-100">{agent.name}</span>
                     {deployBadge(agent, t)}
+                    {agent.kind === "external" && agent.binding?.invoke?.url && (
+                      <Badge variant="ok" mono>{t.console.agents.invoke.invokableBadge}</Badge>
+                    )}
                   </div>
                   {agent.description && (
                     <p className="mt-0.5 truncate text-xs text-fog-400">{agent.description}</p>
+                  )}
+                  {agent.kind === "external" && agent.binding && (
+                    <p className="mt-1 truncate font-mono text-[11px] text-fog-500">
+                      {agent.binding.serviceName} · {agent.binding.logGroup}
+                    </p>
                   )}
                   {agent.deployment?.status === "deployed" && agent.deployment.runtimeArn && (
                     <p className="mt-1 truncate font-mono text-[11px] text-fog-500">{agent.deployment.runtimeArn}</p>
@@ -160,10 +203,18 @@ function AgentList() {
                   )}
                 </div>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => dispatch({ type: "EDIT_AGENT", agentId: agent.id })}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      agent.kind === "external"
+                        ? setEditingExternal(agent.id)
+                        : dispatch({ type: "EDIT_AGENT", agentId: agent.id })
+                    }
+                  >
                     {t.console.common.edit}
                   </Button>
-                  {agent.deployment?.status === "deployed" && (
+                  {(agent.deployment?.status === "deployed" || agent.kind === "external") && (
                     <Button size="sm" variant="secondary" onClick={() => dispatch({ type: "START_RUN_WITH", agentId: agent.id })}>
                       {t.console.agents.runWithAgent}
                     </Button>
@@ -189,7 +240,16 @@ function AgentList() {
                 </div>
               </div>
               <div className="mt-2.5 border-t border-line/60 pt-2.5">
-                <AgentDeployControls agent={agent} onDone={agents.reload} />
+                {agent.kind === "external" ? (
+                  <p className="text-[11px] leading-relaxed text-fog-500">
+                    {t.console.agents.externalNoDeploy}
+                  </p>
+                ) : (
+                  <AgentDeployControls agent={agent} onDone={agents.reload} />
+                )}
+                {(agent.kind === "external" || agent.deployment?.status === "deployed") && (
+                  <TelemetryCheckPanel agentId={agent.id} />
+                )}
               </div>
             </li>
           ))}

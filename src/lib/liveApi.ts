@@ -47,6 +47,42 @@ export interface AgentConfig {
   toolDescriptions: Record<string, string>;
 }
 
+export type AgentKind = "managed" | "external";
+
+/** How dataset traffic reaches an external agent over HTTP. */
+export interface InvokeConfig {
+  url: string;
+  method?: "POST";
+  payloadTemplate?: string;
+  sessionHeader?: string;
+  headers?: Record<string, string>;
+  timeoutSeconds?: number;
+}
+
+/** Telemetry binding for an external agent: where its OTEL traces land. */
+export interface AgentBinding {
+  serviceName: string;
+  logGroup: string;
+  region?: string | null;
+  invoke?: InvokeConfig | null;
+}
+
+/** Result of POST /agents/{id}/telemetry-check (via job polling). */
+export interface TelemetryCheckResult {
+  ok: boolean;
+  serviceName: string;
+  logGroup: { name: string; exists: boolean };
+  spans: {
+    spanCount: number;
+    lastSpanAt: number | null;
+    sessionIdPresent: boolean;
+    sessionIdSamples: string[];
+    operationNames: string[];
+  };
+  /** English technical hints, rendered verbatim (like terminal statuses). */
+  hints: string[];
+}
+
 export interface AgentRecord {
   id: string;
   name: string;
@@ -57,6 +93,9 @@ export interface AgentRecord {
   deployment: AgentDeployment | null;
   /** Runtime-overridable config, read by recommendations + bundles. */
   config: AgentConfig | null;
+  /** 'managed' (deployed to AgentCore runtime) or 'external' (registered by binding). */
+  kind: AgentKind;
+  binding: AgentBinding | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -97,6 +136,8 @@ export interface RunRecord {
   status: RunStatus;
   error: string | null;
   jobId: string | null;
+  /** "dataset" | "lookback:<hours>" | "sessions:<count>" */
+  source: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -445,9 +486,11 @@ export class LiveApi {
   createAgent(body: {
     name: string;
     description?: string;
-    code: string;
+    code?: string;
     requirements?: string[];
     config?: AgentConfig | null;
+    kind?: AgentKind;
+    binding?: AgentBinding | null;
   }) {
     return this.request<AgentRecord>("POST", "/agents", body);
   }
@@ -456,7 +499,9 @@ export class LiveApi {
   }
   updateAgent(
     id: string,
-    body: Partial<Pick<AgentRecord, "name" | "description" | "code" | "requirements" | "config">>,
+    body: Partial<
+      Pick<AgentRecord, "name" | "description" | "code" | "requirements" | "config" | "binding">
+    >,
   ) {
     return this.request<AgentRecord>("PUT", `/agents/${id}`, body);
   }
@@ -468,6 +513,9 @@ export class LiveApi {
   }
   undeployAgent(id: string, body: Record<string, unknown> = {}) {
     return this.request<JobRef>("POST", `/agents/${id}/undeploy`, body);
+  }
+  telemetryCheck(id: string, body: { lookbackHours?: number; creds?: LiveCreds | null } = {}) {
+    return this.request<JobRef>("POST", `/agents/${id}/telemetry-check`, body);
   }
 
   // ─── Console: datasets ────────────────────────────────────────────────
@@ -491,9 +539,12 @@ export class LiveApi {
   }
 
   // ─── Console: runs ────────────────────────────────────────────────────
+  /** Exactly one of datasetId (active) / lookbackHours / sessionIds (passive). */
   createRun(body: {
     agentId: string;
-    datasetId: string;
+    datasetId?: string;
+    lookbackHours?: number;
+    sessionIds?: string[];
     evaluators?: string[];
     waitSeconds?: number;
     creds?: LiveCreds | null;

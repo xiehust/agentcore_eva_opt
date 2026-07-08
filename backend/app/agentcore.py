@@ -168,8 +168,17 @@ def start_batch_evaluation(
     log_groups: list[str],
     session_ids: list[str] | None = None,
     evaluators: list[str] | None = None,
+    time_range: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    filter_config = {"sessionIds": session_ids} if session_ids else {}
+    """Score sessions with evaluators. Scope with explicit ``session_ids``
+    (a run's own traffic) or a ``time_range`` {startTime, endTime} over the
+    agent's existing traffic (passive evaluation) — same filterConfig shape
+    as insights."""
+    filter_config: dict[str, Any] = {}
+    if session_ids:
+        filter_config["sessionIds"] = session_ids
+    if time_range:
+        filter_config["timeRange"] = time_range
     cw: dict[str, Any] = {
         "serviceNames": [service_name],
         "logGroupNames": log_groups,

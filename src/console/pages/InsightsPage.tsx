@@ -40,8 +40,10 @@ export function InsightsPage() {
   const runs = useResource(() => api.listRuns(), []);
   const reports = useResource(() => api.listInsightReports(), []);
 
-  const deployedAgents = (agents.data?.agents ?? []).filter(
-    (a) => a.deployment?.status === "deployed",
+  // Insights read telemetry, not the runtime: deployed managed agents AND
+  // external agents (registered by telemetry binding) both qualify.
+  const evaluableAgents = (agents.data?.agents ?? []).filter(
+    (a) => a.deployment?.status === "deployed" || (a.kind === "external" && a.binding),
   );
   const [agentId, setAgentId] = useState<string>(state.insightDraft?.agentId ?? "");
   const [scope, setScope] = useState<"run" | "lookback">("run");
@@ -50,7 +52,7 @@ export function InsightsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set(INSIGHT_TYPES));
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
-  const effectiveAgentId = agentId || deployedAgents[0]?.id || "";
+  const effectiveAgentId = agentId || evaluableAgents[0]?.id || "";
   // Runs eligible for session-scoped analysis: same agent, has session ids.
   const agentRuns = (runs.data?.runs ?? []).filter(
     (r) => r.agentId === effectiveAgentId && (r.sessionIds?.length ?? 0) > 0,
@@ -99,16 +101,17 @@ export function InsightsPage() {
                 }}
                 className={selectCls}
               >
-                {deployedAgents.length === 0 && <option value="">—</option>}
-                {deployedAgents.map((a) => (
+                {evaluableAgents.length === 0 && <option value="">—</option>}
+                {evaluableAgents.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
+                    {a.kind === "external" ? ` (${t.console.agents.externalBadge})` : ""}
                   </option>
                 ))}
               </select>
-              {deployedAgents.length === 0 && (
+              {evaluableAgents.length === 0 && (
                 <span className="mt-1 block text-[11px] text-warn">
-                  {t.console.runs.noDeployedAgents}
+                  {t.console.runs.noEvaluableAgents}
                 </span>
               )}
             </label>

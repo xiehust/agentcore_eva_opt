@@ -11,10 +11,21 @@ import type { StepKey } from "../data/codeSnippets";
 
 export type Lang = "zh" | "en";
 
+/** Expandable teaching block rendered under each step's lede. */
+export interface StepLearn {
+  /** Why this step exists — the goal, 2–4 sentences. */
+  purpose: string;
+  /** [term, explanation] pairs — the concepts worth understanding. */
+  points: [string, string][];
+  /** One-sentence takeaway, usually how it connects to the next step. */
+  takeaway: string;
+}
+
 export interface StepMeta {
   title: string;
   shortTitle: string;
   lede: string;
+  learn: StepLearn;
 }
 
 export interface Messages {
@@ -100,6 +111,8 @@ export interface Messages {
     sessions: (n: number, total: number) => string;
   };
   stepLabel: (index: number) => string;
+  /** Toggle labels for the expandable "learn more" block under each step lede. */
+  learnMore: { show: string; hide: string; purpose: string; concepts: string; takeaway: string };
   steps: Record<StepKey, StepMeta>;
   step1: {
     identityEyebrow: string;
@@ -159,6 +172,7 @@ export interface Messages {
     pickerTitle: string;
     pickerSelected: (n: number) => string;
     pickerHint: string;
+    docsLink: string;
     default: string;
     customTag: string;
     showCustomCode: string;
@@ -384,6 +398,56 @@ export interface Messages {
       editorLoading: string;
       nameRequired: string;
       codeRequired: string;
+      registerExternal: string;
+      externalBadge: string;
+      externalEyebrow: string;
+      externalTitle: string;
+      externalHint: string;
+      bindingServiceName: string;
+      bindingServiceNameHint: string;
+      bindingLogGroup: string;
+      bindingLogGroupHint: string;
+      bindingRegion: string;
+      registerBtn: string;
+      bindingRequired: string;
+      externalNoDeploy: string;
+      invoke: {
+        sectionTitle: string;
+        sectionHint: string;
+        url: string;
+        urlInvalid: string;
+        payloadTemplate: string;
+        payloadTemplateHint: string;
+        sessionHeader: string;
+        headers: string;
+        headerName: string;
+        headerValue: string;
+        addHeader: string;
+        removeHeader: string;
+        timeout: string;
+        privacyNote: string;
+        invokableBadge: string;
+      };
+      telemetry: {
+        checkBtn: string;
+        checking: string;
+        eyebrow: string;
+        lookback: string;
+        logGroupCheck: string;
+        spansCheck: string;
+        spansFound: (n: number) => string;
+        noSpans: string;
+        sessionIdCheck: string;
+        sessionIdMissing: string;
+        lastSpanAt: string;
+        operations: string;
+        hintsEyebrow: string;
+        allGood: string;
+        snippetEyebrow: string;
+        snippetHint: string;
+        copy: string;
+        copied: string;
+      };
     };
     datasets: {
       title: string;
@@ -407,6 +471,7 @@ export interface Messages {
     evaluators: {
       title: string;
       builtinEyebrow: string;
+      docsLink: string;
       customEyebrow: string;
       createTitle: string;
       instructions: string;
@@ -451,6 +516,20 @@ export interface Messages {
       batchId: string;
       selectRun: string;
       triageBtn: string;
+      scope: string;
+      scopeDataset: string;
+      scopeLookback: string;
+      scopeSessions: string;
+      scopeDatasetDisabled: string;
+      lookbackLabel: string;
+      lookbackHint: string;
+      sessionIdsLabel: string;
+      sessionIdsHint: string;
+      noEvaluableAgents: string;
+      evaluableHint: string;
+      passiveStartedHint: string;
+      sourceLookback: (h: number) => string;
+      sourceSessions: (n: number) => string;
     };
     insights: {
       newEyebrow: string;
@@ -689,56 +768,173 @@ export const en: Messages = {
     sessions: (n, t) => `${n}/${t} sessions`,
   },
   stepLabel: (i) => `Step ${i}`,
+  learnMore: {
+    show: "Why this step? — learn more",
+    hide: "Hide explanation",
+    purpose: "Purpose",
+    concepts: "Key concepts",
+    takeaway: "Takeaway",
+  },
   steps: {
     config: {
       title: "Configuration",
       shortTitle: "Configure",
       lede: "Every run gets a unique random suffix so repeated journeys never collide. The runtime names are derived from it — one for the v1 agent, one for the v2 canary you'll deploy later.",
+      learn: {
+        purpose:
+          "Before touching any AWS API, establish an isolated namespace for this run. Cloud resources are account-global: two people (or two runs) creating a runtime called 'HRAssist' would collide. A random suffix makes every resource name unique, which also makes cleanup safe — you only ever delete what THIS run created.",
+        points: [
+          ["Naming as isolation", "AgentCore runtimes, IAM roles, S3 prefixes and A/B tests are all keyed by name. Deriving every name from one suffix gives you a poor-man's workspace without any extra infrastructure."],
+          ["v1 AND v2 up front", "The journey ends with a canary comparing two agent versions, so both names are reserved now — a reminder that optimization is a loop, not a one-shot deployment."],
+          ["Identity check", "The account/region shown here is what boto3 resolved from the credential chain. In Live mode a wrong region here is the #1 cause of 'resource not found' later."],
+        ],
+        takeaway: "Everything that follows hangs off these two names — the same discipline you'd want in any IaC setup.",
+      },
     },
     deploy: {
       title: "Deploy HR Assistant v1",
       shortTitle: "Deploy v1",
       lede: "The deploy script builds an ARM64 container from the agent code, creates an IAM execution role, uploads to S3, then creates an AgentCore Runtime and polls until it reports ACTIVE. Live this takes 3–5 minutes; here it's compressed to seconds.",
+      learn: {
+        purpose:
+          "Turn a Python file into a managed, invocable agent endpoint. AgentCore Runtime is serverless agent hosting: you hand it code, it gives you back an ARN you can invoke with per-session isolation — no servers, load balancers, or scaling policies to manage.",
+        points: [
+          ["What the runtime is", "A managed execution environment purpose-built for agents: fast cold starts, session isolation (each session gets its own microVM), and built-in OTEL telemetry export to CloudWatch — which is what makes every later step (evaluation, insights, recommendations) possible."],
+          ["Why ARM64 + S3", "The build targets manylinux aarch64 wheels because the runtime runs on Graviton. The zip goes to S3 and CreateAgentRuntime references it — the same artifact-then-reference pattern as Lambda."],
+          ["The IAM execution role", "The agent's own identity at runtime: what model it may call via Bedrock, what logs it may write. Separate from YOUR credentials that deploy it — deployer and agent have different privileges."],
+          ["Poll to ACTIVE", "CreateAgentRuntime is asynchronous. The script polls GetAgentRuntime until status=ACTIVE — the standard cloud pattern for anything that provisions infrastructure."],
+        ],
+        takeaway: "You now have an invocable agent ARN whose every session is automatically traced — the raw material for evaluation.",
+      },
     },
     baseline: {
       title: "Baseline Bundle & Traffic",
       shortTitle: "Baseline",
       lede: "A Configuration Bundle is a versioned container for the agent's system prompt and tool descriptions, read at invocation time — no redeploy needed. We create a baseline bundle, then send 10 representative HR sessions whose traces feed evaluation and recommendations next.",
+      learn: {
+        purpose:
+          "You can't improve what you haven't measured, and you can't measure without traffic. This step freezes the starting configuration (so later comparisons have a fixed reference point) and generates a representative workload whose traces become the dataset every following step reads.",
+        points: [
+          ["Config split from code", "The bundle separates the agent's tunable surface (system prompt, tool descriptions) from its code. That's what makes fast iteration possible later: changing a prompt becomes a version bump, not a 5-minute redeploy."],
+          ["Versioned & immutable", "Every bundle write creates a new version. 'Baseline' isn't just a name — it's a pinned version you can diff against and roll back to, like a git tag for agent config."],
+          ["Session = conversation", "Each prompt is sent with its own session ID. Sessions are the unit evaluations group by: one session → its traces → its scores. The IDs recorded here are exactly what Step 4 filters on."],
+          ["Representative traffic", "The 10 prompts deliberately cover the agent's whole task surface (PTO, benefits, policies, payroll) including edge cases — a biased sample would produce a biased baseline."],
+        ],
+        takeaway: "Fixed config + recorded sessions = a reproducible baseline. Next: score it.",
+      },
     },
     eval: {
       title: "Baseline Batch Evaluation",
       shortTitle: "Evaluate",
       lede: "Batch evaluation discovers the sessions you just sent from CloudWatch, runs each through built-in LLM evaluators, and returns aggregate scores. These become the baseline you'll try to beat with A/B testing.",
+      learn: {
+        purpose:
+          "Convert 'the agent seems fine' into numbers. Batch evaluation replays nothing — it reads the OTEL traces your traffic already produced and has LLM judges score them along specific dimensions. Numbers make the rest of the journey possible: you can't claim an optimization worked without a before/after.",
+        points: [
+          ["Evaluation from telemetry", "The evaluators consume spans from CloudWatch (aws/spans + the agent's log group), not live calls. That means you can evaluate ANY traffic — including production sessions you didn't script, or agents hosted outside AgentCore."],
+          ["Three levels", "Session-level (Goal Success Rate: did the user accomplish their goal across the whole conversation?), trace-level (Helpfulness, Correctness: quality of each exchange), and tool-level (did it pick the right tool with the right arguments?). Different levels catch different failure modes."],
+          ["LLM-as-judge", "Each built-in evaluator is a calibrated LLM judge with a rubric. Scores are 0–1 averages across sessions — treat them as trends, not absolute truth; the same rubric applied before and after a change is what makes them meaningful."],
+          ["Why scores aren't enough", "A 0.72 Helpfulness tells you something is wrong but not WHAT. That's the cue for the next step."],
+        ],
+        takeaway: "Baseline numbers are locked in. Now diagnose the failures behind them.",
+      },
     },
     insights: {
       title: "Failure Insights",
       shortTitle: "Insights",
       lede: "Scores tell you THAT the agent underperforms — insights tell you WHY. The same batch-evaluation API, given insights instead of evaluators, triages every session: failure patterns with root causes and fixes, what users were trying to do, and how the agent behaved. These findings feed the recommendations next.",
+      learn: {
+        purpose:
+          "Diagnosis before treatment. Reading raw traces to find failure patterns is hours of manual work; insights automates the triage — an LLM reads every session, then clusters what it finds into failure categories (with root causes and suggested fixes), user intents, and execution patterns.",
+        points: [
+          ["Same API, different mode", "StartBatchEvaluation with insights= instead of evaluators= — they're mutually exclusive, and only one batch evaluation can run per account at a time. Scoring and triage are two lenses over the same trace data."],
+          ["Failure tree", "Failures cluster into categories → subcategories → root causes, each root cause with affected sessions and a suggested fix. This turns 'GSR is 0.6' into 'the agent claims to verify employee IDs it never looked up' — something you can actually act on."],
+          ["Intent & execution clusters", "User-intent clusters show what people actually ask for (which may not match what the agent was designed for); execution summaries show HOW the agent behaves (e.g. graceful degradation vs silent failure)."],
+          ["Feeds the next step", "The root causes surfaced here are exactly the kind of evidence the recommendation engine uses to rewrite the prompt."],
+        ],
+        takeaway: "You now know WHY sessions fail — the recommendations next translate that into concrete config changes.",
+      },
     },
     recommend: {
       title: "Optimization Recommendations",
       shortTitle: "Recommend",
       lede: "AgentCore analyses your production traces and proposes improved configuration. A system-prompt recommendation rewrites your prompt to lift a target metric; a tool-description recommendation sharpens each tool's description so the model picks the right tool more often.",
+      learn: {
+        purpose:
+          "Close the analysis→action gap automatically. Instead of a human reading failure reports and hand-editing prompts, StartRecommendation points an optimizer at your traces: it studies where sessions went wrong and proposes a rewritten system prompt and sharper tool descriptions, each targeting a metric you choose (here: Goal Success Rate).",
+        points: [
+          ["Evidence-based rewriting", "The optimizer doesn't guess — it mines your real traces (the last 7 days of agent behavior) for failure patterns, then rewrites the prompt to address specifically those. That's the difference from asking a chatbot to 'improve my prompt'."],
+          ["Two levers", "System prompt = the agent's overall behavior contract. Tool descriptions = how the model decides which tool to call. Bad tool descriptions are a top cause of wrong-tool selection, and they're cheap to fix."],
+          ["Recommendations are hypotheses", "The output is a PROPOSAL with a rationale, not a guaranteed win. You accept it into a treatment configuration, but the A/B test in the next steps is what actually decides whether it ships."],
+          ["Async job pattern", "StartRecommendation returns an ID; you poll until COMPLETED — these analyses run minutes-long over trace archives."],
+        ],
+        takeaway: "You have candidate improvements with rationales. Next: package them so they can be tested against the original.",
+      },
     },
     bundles: {
       title: "Configuration Bundles",
       shortTitle: "Bundles",
       lede: "A Configuration Bundle is a versioned, immutable container of agent config keyed by runtime ARN. We package two: a control (original) and a treatment (the recommendations you accepted). Every create/update yields a new version you can read back or roll back to.",
+      learn: {
+        purpose:
+          "Make the experiment concrete: two named, versioned artifacts — control (what runs today) and treatment (the recommended changes). Packaging config as immutable versions is what allows the A/B infrastructure to route between them deterministically and roll back instantly.",
+        points: [
+          ["Control vs treatment", "Classic experiment design. The control bundle pins the CURRENT behavior so the comparison is honest — if you let the control drift while testing, the result means nothing."],
+          ["Immutability = auditability", "Updates never overwrite: they append a new version with a commit message and parent version, like a git history for agent config. You can always answer 'what exactly was the agent told at 3pm Tuesday?'"],
+          ["Keyed by runtime ARN", "A bundle maps each agent ARN to its config components. The runtime reads its slice at invocation time via get_config_bundle() — the agent code stays identical in both variants."],
+          ["Diff before test", "The diff view here is the last human checkpoint: review exactly which keys changed before spending traffic on the experiment."],
+        ],
+        takeaway: "Control and treatment are frozen as versions. Now build the routing that splits traffic between them.",
+      },
     },
     bundleAB: {
       title: "A/B Test — Config Bundle Routing",
       shortTitle: "Bundle A/B",
       lede: "When the change is pure configuration — a different prompt or tool descriptions — both variants run on one runtime. The gateway injects the right configuration bundle per request via W3C baggage headers, sticky per session. Deploy one runtime, one eval config, and split the traffic.",
+      learn: {
+        purpose:
+          "Test the recommendation scientifically instead of trusting it. Offline scores and plausible-sounding prompts both lie; the only honest verdict is live traffic randomly split between control and treatment, scored by the same online evaluators, compared with statistics.",
+        points: [
+          ["Why a gateway", "Something has to sit in front of the runtime to make the split. The gateway routes each incoming session to a variant per the configured weights (50/50 here) and stamps the choice into W3C baggage headers the runtime reads to load the right bundle."],
+          ["Session stickiness", "The variant is chosen once per session, not per request — a user switching prompts mid-conversation would corrupt both variants' data."],
+          ["Online evaluation", "Unlike Step 4's one-shot batch, an online evaluation config continuously scores sessions as they complete, per variant. This is what production monitoring looks like."],
+          ["Statistical significance", "Results come with sample sizes and p-values. n=10 per variant with p>0.05 means 'suggestive, not proven' — the sim deliberately shows this so you learn to distrust small samples."],
+          ["50/50 because it's cheap", "A config change is low-risk (same code!), so equal split maximizes statistical power. Contrast with the next step."],
+        ],
+        takeaway: "Config-level change validated with a fair experiment. But what if the change is CODE? That needs different routing — next step.",
+      },
     },
     targetAB: {
       title: "A/B Test — Target-Based Routing",
       shortTitle: "Target A/B",
       lede: "When the change is code — a new tool, a framework upgrade, a different implementation — route across two separate runtimes. We deploy v2 (it adds an escalation tool and an improved baked-in prompt), then canary it: 10% of traffic to v2, evaluated by its own config, ramping up only if metrics hold.",
+      learn: {
+        purpose:
+          "Ship a NEW VERSION of the agent safely. A bundle can only change what config covers; v2 here adds an escalation tool — that's code, so it needs its own runtime. The canary pattern answers the release question: 'can v2 take production traffic without breaking things?' — by letting it prove itself on a small slice first.",
+        points: [
+          ["Bundle A/B vs canary", "Bundle A/B (previous step) optimizes CONFIG on one runtime at 50/50 — a fair experiment. The canary routes between TWO runtimes at 90/10 — a safety mechanism. Same A/B API, different variantConfiguration (target vs configurationBundle), different intent: one asks 'which is better?', the other asks 'is the new one safe?'"],
+          ["Why 90/10, not 50/50", "The canary's blast radius IS the traffic share. If v2 has a regression, only 10% of sessions feel it. You trade statistical speed for production safety — the opposite trade-off from the bundle test."],
+          ["Per-variant evaluation", "Each target gets its own online evaluation config, so v1 and v2 accumulate separate score streams over the same real traffic mix — the evidence for the ramp decision."],
+          ["Weight ramping = release lever", "UpdateABTest moves weights 90/10 → 50/50 → 0/100 without redeploying anything. And it's symmetric: metrics degrade → set it back → instant rollback. Traffic weights become your deployment mechanism."],
+          ["One test per gateway", "The bundle test must stop before the canary starts — a real service constraint the sim preserves. Sequencing experiments is part of operating this in production."],
+        ],
+        takeaway: "This is the full release loop: evaluate → diagnose → recommend → experiment → canary → ramp. Every step earned by data, every step reversible.",
+      },
     },
     cleanup: {
       title: "Cleanup",
       shortTitle: "Cleanup",
       lede: "Tear down every resource the journey created. Each category is deleted independently, so a partial run still cleans up what it can.",
+      learn: {
+        purpose:
+          "Leave the account as you found it. The journey created ~8 categories of billable or namespace-occupying resources; tearing them down in the right order — and tolerating partial failures — is as much a part of the workflow as creating them.",
+        points: [
+          ["Order matters", "A/B tests must stop before their gateway can go; gateway targets must drain before DeleteGateway succeeds; IAM roles need their policies detached before deletion. Dependency-ordered teardown is the mirror image of the creation sequence."],
+          ["Per-category tolerance", "Each delete runs independently and failures don't abort the rest — a half-created run (crash mid-journey) can still be cleaned. Idempotent, tolerant teardown is a production habit, not just lab hygiene."],
+          ["What survives", "CloudWatch traces and evaluation results are log data, not provisioned resources — they age out by retention policy and are intentionally NOT deleted. Your experiment's evidence outlives its infrastructure."],
+        ],
+        takeaway: "Journey complete: measure → diagnose → recommend → verify → release safely → clean up. The loop is repeatable — that's the point.",
+      },
     },
   },
   stepInsights: {
@@ -831,6 +1027,7 @@ export const en: Messages = {
     pickerSelected: (n) => `${n} selected`,
     pickerHint:
       "The default trio always runs. AgentCore ships 13 built-in evaluators across session, trace, and tool-call levels — add any to the baseline.",
+    docsLink: "Built-in evaluator reference (AWS docs)",
     default: "default",
     customTag: "custom · llm judge",
     showCustomCode: "Show custom evaluator code",
@@ -1150,6 +1347,61 @@ export const en: Messages = {
       editorLoading: "Loading editor…",
       nameRequired: "Name is required",
       codeRequired: "Agent code is required",
+      registerExternal: "Register external agent",
+      externalBadge: "External",
+      externalEyebrow: "External agent",
+      externalTitle: "Register an external agent",
+      externalHint:
+        "Evaluate an agent running anywhere (Lambda, EKS, your laptop…) — no AgentCore deployment needed. It just has to emit OTEL traces to CloudWatch via the ADOT SDK; evaluations read them from there.",
+      bindingServiceName: "OTEL service name",
+      bindingServiceNameHint: "The service.name in OTEL_RESOURCE_ATTRIBUTES, e.g. my-agent",
+      bindingLogGroup: "CloudWatch log group",
+      bindingLogGroupHint: "The log group in aws.log.group.names, e.g. /aws/bedrock-agentcore/runtimes/my-agent",
+      bindingRegion: "Region (optional)",
+      registerBtn: "Register",
+      bindingRequired: "Service name and log group are required",
+      externalNoDeploy: "Registered by telemetry binding — evaluation reads its existing traces.",
+      invoke: {
+        sectionTitle: "Invocation endpoint (optional)",
+        sectionHint:
+          "With an HTTP endpoint configured, dataset runs can send traffic to this agent — the console POSTs each prompt and then evaluates the resulting sessions.",
+        url: "Endpoint URL",
+        urlInvalid: "URL must start with http:// or https://",
+        payloadTemplate: "Payload template",
+        payloadTemplateHint:
+          "{prompt} and {sessionId} are replaced with JSON-encoded values at invocation time.",
+        sessionHeader: "Session ID header",
+        headers: "Extra headers",
+        headerName: "Header",
+        headerValue: "Value",
+        addHeader: "+ Add header",
+        removeHeader: "Remove",
+        timeout: "Timeout (seconds)",
+        privacyNote:
+          "Header values are stored in this app's local database — avoid long-lived production secrets.",
+        invokableBadge: "Invokable",
+      },
+      telemetry: {
+        checkBtn: "Check telemetry",
+        checking: "Probing CloudWatch…",
+        eyebrow: "Telemetry check",
+        lookback: "Lookback",
+        logGroupCheck: "Log group exists",
+        spansCheck: "Spans in aws/spans",
+        spansFound: (n) => `${n} span${n === 1 ? "" : "s"} found`,
+        noSpans: "No spans found",
+        sessionIdCheck: "session.id present",
+        sessionIdMissing: "Missing — evaluations cannot group sessions",
+        lastSpanAt: "Last span",
+        operations: "Operations",
+        hintsEyebrow: "Hints",
+        allGood: "Telemetry looks good — this agent can be evaluated.",
+        snippetEyebrow: "Agent-side setup",
+        snippetHint:
+          "Set these environment variables in the agent's process (ADOT SDK required: pip install aws-opentelemetry-distro, run under opentelemetry-instrument), and propagate the session ID via OTEL baggage:",
+        copy: "Copy",
+        copied: "Copied ✓",
+      },
     },
     datasets: {
       title: "Datasets",
@@ -1173,6 +1425,7 @@ export const en: Messages = {
     evaluators: {
       title: "Evaluators",
       builtinEyebrow: "Built-in evaluators",
+      docsLink: "Built-in evaluator reference (AWS docs)",
       customEyebrow: "Custom LLM-judge evaluators",
       createTitle: "Create custom evaluator",
       instructions: "Judge instructions",
@@ -1217,6 +1470,23 @@ export const en: Messages = {
       batchId: "Batch evaluation ID",
       selectRun: "Select a run to see its scores.",
       triageBtn: "Triage with Insights →",
+      scope: "Traffic to evaluate",
+      scopeDataset: "Dataset (send traffic)",
+      scopeLookback: "Recent time window",
+      scopeSessions: "Explicit session IDs",
+      scopeDatasetDisabled:
+        "Dataset runs need a deployed agent or an external agent with an invoke endpoint.",
+      lookbackLabel: "Lookback hours",
+      lookbackHint:
+        "Evaluates the agent's existing traffic in this window (up to 500 sessions) — no new traffic is sent.",
+      sessionIdsLabel: "Session IDs (one per line)",
+      sessionIdsHint: "Evaluates exactly these sessions from the agent's existing traffic.",
+      noEvaluableAgents: "No evaluable agents — deploy or register one on the Agents page first.",
+      evaluableHint: "Deployed agents and external agents (registered by telemetry binding) can be evaluated.",
+      passiveStartedHint:
+        "Starts a batch evaluation over traffic already in CloudWatch — no invocations. Only one batch evaluation can be active per account.",
+      sourceLookback: (h) => `Lookback ${h}h`,
+      sourceSessions: (n) => `${n} session${n === 1 ? "" : "s"} (explicit)`,
     },
     insights: {
       newEyebrow: "New insights report",
@@ -1461,56 +1731,173 @@ export const zh: Messages = {
     sessions: (n, t) => `${n}/${t} 会话`,
   },
   stepLabel: (i) => `第 ${i} 步`,
+  learnMore: {
+    show: "为什么有这一步？— 展开详解",
+    hide: "收起详解",
+    purpose: "目的",
+    concepts: "核心概念",
+    takeaway: "要点",
+  },
   steps: {
     config: {
       title: "配置",
       shortTitle: "配置",
       lede: "每次运行都会生成唯一的随机后缀，避免重复旅程之间的资源冲突。运行时名称由它派生 — 一个用于 v1 智能体，另一个用于稍后部署的 v2 金丝雀版本。",
+      learn: {
+        purpose:
+          "调用任何 AWS API 之前，先给这次运行划出独立的命名空间。云上资源是账号级全局的：两个人（或两次运行）都建一个叫 'HRAssist' 的 runtime 就会撞名。随机后缀保证资源名唯一，清理时也放心 — 删的一定是这次运行建出来的东西。",
+        points: [
+          ["用命名做隔离", "AgentCore runtime、IAM 角色、S3 前缀、A/B 测试都靠名字定位。所有名字从同一个后缀派生，相当于零成本拿到一个隔离环境，不用搭任何额外设施。"],
+          ["v1、v2 名字一次订好", "整个流程的终点是 v1 / v2 的金丝雀对比，所以两个名字现在就定下来 — 也是在提醒：优化是循环，不是部署完就结束。"],
+          ["身份确认", "页面上的账号/区域来自 boto3 凭证链的解析结果。Live 模式下，区域配错是后面报 'resource not found' 的头号原因。"],
+        ],
+        takeaway: "后面所有步骤都建立在这两个名字之上 — 和 IaC 里的命名纪律是一回事。",
+      },
     },
     deploy: {
       title: "部署 HR 助手 v1",
       shortTitle: "部署 v1",
       lede: "部署脚本会将智能体代码构建为 ARM64 容器，创建 IAM 执行角色并上传到 S3，然后创建 AgentCore Runtime 并轮询直到状态变为 ACTIVE。真实环境需要 3–5 分钟；这里压缩为几秒。",
+      learn: {
+        purpose:
+          "把一个 Python 文件变成托管的、可调用的 agent 服务。AgentCore Runtime 是 serverless 的 agent 托管：交出代码，拿回一个可调用的 ARN，session 之间天然隔离 — 服务器、负载均衡、扩缩容都不用管。",
+        points: [
+          ["Runtime 是什么", "为 agent 定制的托管执行环境：冷启动快、session 隔离（每个 session 一个 microVM）、OTEL 遥测自动上报 CloudWatch — 最后这条是后面评估、洞察、推荐能跑起来的前提。"],
+          ["为什么是 ARM64 + S3", "runtime 跑在 Graviton 上，所以构建目标是 manylinux aarch64 wheel。zip 包先传 S3，CreateAgentRuntime 再引用 — 和 Lambda 一样，先有制品、后建资源。"],
+          ["IAM 执行角色", "agent 在运行时的身份：能调 Bedrock 里的哪些模型、能写哪些日志，都由它决定。它和你部署用的凭证是两回事 — 部署者和 agent 各有各的权限。"],
+          ["轮询到 ACTIVE", "CreateAgentRuntime 是异步的，脚本轮询 GetAgentRuntime 直到 status=ACTIVE — 云上凡是要开基础设施的 API 都是这个套路。"],
+        ],
+        takeaway: "现在你有了一个可调用的 agent ARN，它的每个 session 都会被自动追踪 — 这就是评估的原材料。",
+      },
     },
     baseline: {
       title: "基线配置包与流量",
       shortTitle: "基线",
       lede: "配置包（Configuration Bundle）是智能体系统提示词与工具描述的版本化容器，在调用时读取 — 无需重新部署。我们先创建基线配置包，再发送 10 个代表性 HR 会话，其追踪数据将用于接下来的评估与推荐。",
+      learn: {
+        purpose:
+          "没有度量谈不上改进，没有流量也谈不上度量。这一步做两件事：冻结初始配置（后面的对比才有固定参照），再发一批有代表性的流量 — 它产生的 trace 就是后面每一步要读的数据集。",
+        points: [
+          ["配置和代码分开管", "配置包把 agent 可调的部分（系统提示词、工具描述）从代码里抽出来。这是后面快速迭代的基础：改提示词只是版本号 +1，不用重新部署 5 分钟。"],
+          ["版本化、不可变", "配置包每次写入都生成新版本。'基线'不只是个名字 — 它是一个能 diff、能回滚的固定版本，相当于给 agent 配置打了个 git tag。"],
+          ["session 就是一次对话", "每条 prompt 都带着独立的 session ID 发出去。session 是评估的分组单位：一个 session → 它的 trace → 它的分数。这里记下的 ID，第 4 步会拿去圈定评估范围。"],
+          ["流量要有代表性", "这 10 条 prompt 特意覆盖了 agent 的全部业务面（休假、福利、政策、工资单），还塞了边界情况 — 样本有偏，基线就有偏。"],
+        ],
+        takeaway: "固定的配置 + 记录在案的 session = 可复现的基线。下一步：打分。",
+      },
     },
     eval: {
       title: "基线批量评估",
       shortTitle: "评估",
       lede: "批量评估会从 CloudWatch 中发现你刚发送的会话，用内置 LLM 评估器逐一评分并返回聚合分数。这些分数就是接下来 A/B 测试要挑战的基线。",
+      learn: {
+        purpose:
+          "把'agent 看着还行'变成数字。批量评估不重放任何请求 — 它直接读流量已经产生的 OTEL trace，让 LLM 评审按维度打分。有了数字，后面的流程才立得住：没有前后对比，就没法说优化到底有没有效。",
+        points: [
+          ["基于遥测评估", "评估器读的是 CloudWatch 里的 span（aws/spans + agent 日志组），不发起实时调用。所以任何流量都能评 — 包括你没编排过的生产 session，甚至托管在 AgentCore 之外的 agent。"],
+          ["三个层级", "session 级（目标达成率：整段对话下来用户的事办成没有）、trace 级（有用性、正确性：单轮交互的质量）、工具级（工具选对没有、参数传对没有）。不同层级抓不同的失败模式。"],
+          ["LLM 评审", "每个内置评估器都是带评分标准的 LLM 评审。分数是跨 session 的 0–1 均值 — 当趋势看，别当绝对真理；重点是变更前后用同一把尺子量，对比才有意义。"],
+          ["光有分数不够", "有用性 0.72 只说明有问题，没说问题是什么。这就是下一步的切入点。"],
+        ],
+        takeaway: "基线数字锁定。接下来诊断数字背后的失败。",
+      },
     },
     insights: {
       title: "失败洞察",
       shortTitle: "洞察",
       lede: "分数只告诉你智能体\"表现不佳\"——洞察告诉你\"为什么\"。同一个批量评估 API,传入 insights 而非 evaluators,即可对每个会话做触诊:失败模式(含根因与修复建议)、用户意图、执行行为。这些发现将喂给下一步的推荐。",
+      learn: {
+        purpose:
+          "先诊断，再开药。靠人工翻原始 trace 找失败模式得花几个小时；洞察把这件事自动化 — LLM 读完每个 session，把发现聚类成失败类别（带根因和修复建议）、用户意图、执行模式三类。",
+        points: [
+          ["同一个 API，两种模式", "StartBatchEvaluation 传 insights= 而不是 evaluators= — 两个参数互斥，且每个账号同时只能跑一个批量评估。打分和诊断，是同一份 trace 数据的两个视角。"],
+          ["失败树", "失败按类别 → 子类别 → 根因逐层聚类，每个根因附受影响的 session 和修复建议。它把 'GSR 只有 0.6' 变成 'agent 声称核实过一个它从没查过的工号' — 后者才改得动。"],
+          ["意图和执行聚类", "用户意图聚类看的是用户实际在问什么（可能跟 agent 的设计初衷对不上）；执行摘要看的是 agent 实际怎么干的（比如是优雅降级还是静默失败）。"],
+          ["供给下一步", "这里挖出来的根因，正是下一步推荐引擎重写提示词的依据。"],
+        ],
+        takeaway: "现在知道 session 为什么失败了 — 下一步把这些发现变成具体的配置修改。",
+      },
     },
     recommend: {
       title: "优化建议",
       shortTitle: "推荐",
       lede: "AgentCore 分析生产环境的追踪数据并提出配置改进：系统提示词推荐会重写提示词以提升目标指标；工具描述推荐会精炼每个工具的描述，让模型更准确地选择工具。",
+      learn: {
+        purpose:
+          "把'分析 → 动手改'这一段自动化。不用人读完失败报告再手改提示词，StartRecommendation 让优化器直接研究 trace 数据：找出 session 出错的地方，然后给出重写后的系统提示词和更精准的工具描述，每项都对着你选定的指标（这里是目标达成率）来优化。",
+        points: [
+          ["有据可依的重写", "优化器不是凭空发挥 — 它从真实 trace（最近 7 天的 agent 行为）里挖失败模式，再针对性地改提示词。这跟让聊天机器人'帮我润色一下提示词'是两码事。"],
+          ["两个抓手", "系统提示词决定 agent 的整体行为；工具描述决定模型选哪个工具。工具描述写得差是选错工具的头号原因，而且改起来成本最低。"],
+          ["推荐只是假设", "产出是带理由的提案，不是稳赢的答案。你把它收进实验组配置，但它能不能上线，由接下来的 A/B 测试说了算。"],
+          ["异步任务", "StartRecommendation 返回一个 ID，轮询到 COMPLETED 为止 — 这种分析要在 trace 存档上跑好几分钟。"],
+        ],
+        takeaway: "候选改进（带理由）已经到手。下一步：打包，跟原始配置对照测试。",
+      },
     },
     bundles: {
       title: "配置包",
       shortTitle: "配置包",
       lede: "配置包是以运行时 ARN 为键、版本化且不可变的智能体配置容器。我们打包两份：对照组（原始配置）与实验组（你接受的推荐配置）。每次创建/更新都会产生一个可回读、可回滚的新版本。",
+      learn: {
+        purpose:
+          "把实验落到实处：两个有名字、有版本的配置制品 — 对照组（线上现在跑的）和实验组（接受的推荐修改）。配置打包成不可变的版本，A/B 那套基础设施才能在两者间确定性地路由，回滚也才能做到秒级。",
+        points: [
+          ["对照组 vs 实验组", "标准的实验设计。对照组配置包把'当前行为'钉死，对比才算数 — 测试期间对照组要是还在变，结果就没有意义。"],
+          ["不可变 = 可审计", "更新从不覆盖，只追加：新版本带提交信息和父版本号，相当于 agent 配置的 git 历史。'周二下午 3 点 agent 的指令到底是什么' 这种问题永远有答案。"],
+          ["以 runtime ARN 为键", "配置包把每个 agent ARN 映射到它的配置。runtime 在调用时通过 get_config_bundle() 读自己那份 — 两个变体的 agent 代码一模一样。"],
+          ["测试前先 diff", "这里的 diff 视图是最后一道人工关卡：真金白银的流量花出去之前，确认到底改了哪几个键。"],
+        ],
+        takeaway: "对照组、实验组都冻结成版本了。接下来搭分流路由。",
+      },
     },
     bundleAB: {
       title: "A/B 测试 — 配置包路由",
       shortTitle: "配置包 A/B",
       lede: "当变更是纯配置（不同的提示词或工具描述）时，两个变体运行在同一个运行时上。网关通过 W3C baggage 头为每个请求注入对应的配置包，会话内保持粘性。一个运行时、一个评估配置，即可分流流量。",
+      learn: {
+        purpose:
+          "用实验验证推荐，而不是直接信它。离线分数会骗人，'看着更好'的提示词也会骗人；唯一可信的裁决是把真实流量随机分给对照组和实验组，用同一套在线评估器打分，再看统计结果。",
+        points: [
+          ["为什么要网关", "总得有个东西站在 runtime 前面负责分流。网关按配置的权重（这里 50/50）给每个新 session 选变体，并把选择写进 W3C baggage 头 — runtime 读到它就加载对应的配置包。"],
+          ["session 粘性", "变体是按 session 定一次，不是按请求 — 用户聊到一半被换了提示词，两边的数据就全被污染了。"],
+          ["在线评估", "不同于第 4 步那种一次性的批量评估，在线评估配置会在 session 结束时持续打分、按变体分别累积。生产环境的监控就是这个形态。"],
+          ["统计显著性", "结果带样本量和 p 值。每组 n=10、p>0.05 的意思是'有苗头，但没证实' — 仿真故意呈现这种结果，让你对小样本保持警惕。"],
+          ["50/50 是因为风险低", "配置变更风险小（代码没动），流量对半分能最快出统计结论。跟下一步正好相反。"],
+        ],
+        takeaway: "配置级变更通过了公平实验。但要是变更动了代码呢？那得换一种路由 — 看下一步。",
+      },
     },
     targetAB: {
       title: "A/B 测试 — 目标路由",
       shortTitle: "目标 A/B",
       lede: "当变更涉及代码（新工具、框架升级、不同实现）时，需要在两个独立的运行时之间路由。我们部署 v2（新增一个升级转接工具及内置的改进提示词），然后金丝雀发布：10% 流量到 v2，由独立评估配置打分，指标稳定后再逐步放量。",
+      learn: {
+        purpose:
+          "把 agent 的新版本安全发上线。配置包只能改配置够得着的东西；这里的 v2 加了一个升级转接工具 — 那是代码，必须有自己的 runtime。金丝雀要回答的是发布问题：'v2 接生产流量会不会出事？' — 先给它一小片流量，让它自己证明。",
+        points: [
+          ["配置包 A/B vs 金丝雀", "配置包 A/B（上一步）在同一个 runtime 上 50/50 地测配置 — 是公平实验；金丝雀在两个 runtime 之间 90/10 地分流 — 是安全机制。同一个 A/B API，variantConfiguration 不一样（target vs configurationBundle），要回答的问题也不一样：一个问'哪个更好'，一个问'新的稳不稳'。"],
+          ["为什么 90/10 而不是 50/50", "金丝雀的爆炸半径就等于它分到的流量。v2 真有回归，也只波及 10% 的 session。拿统计速度换生产安全 — 和配置包测试的取舍正好相反。"],
+          ["按变体各自评估", "每个 target 挂自己的在线评估配置，v1、v2 在同一批真实流量上各自积累分数 — 放量决策就看这份证据。"],
+          ["调权重就是发布", "UpdateABTest 把权重从 90/10 → 50/50 → 0/100，全程不用重新部署任何东西。而且是双向的：指标一恶化，权重调回去，回滚就是几秒钟的事。流量权重本身成了发布机制。"],
+          ["一个网关同时只能跑一个测试", "金丝雀开始前得先停掉配置包测试 — 真实的服务约束，仿真特意保留。给实验排期也是生产运维的一部分。"],
+        ],
+        takeaway: "这就是完整的发布闭环：评估 → 诊断 → 推荐 → 实验 → 金丝雀 → 放量。每步有数据撑腰，每步都能回退。",
+      },
     },
     cleanup: {
       title: "清理",
       shortTitle: "清理",
       lede: "拆除本次旅程创建的所有资源。每个类别独立删除，即使部分运行失败也能尽量清理。",
+      learn: {
+        purpose:
+          "把账号恢复原状。这一趟建了大约 8 类要计费或占名字的资源；按正确顺序拆掉、并容忍部分失败，跟创建它们一样是工作流的一部分。",
+        points: [
+          ["顺序有讲究", "A/B 测试先停才能删网关；网关 target 先排空 DeleteGateway 才会成功；IAM 角色先解绑策略才删得掉。按依赖顺序拆，正是创建顺序倒着来。"],
+          ["按类别容错", "每类删除各自执行，一个失败不影响其他 — 中途崩掉的半截运行也能清理干净。幂等、容错的拆除是生产习惯，不只是实验课后的收拾桌面。"],
+          ["会留下什么", "CloudWatch 的 trace 和评估结果是日志数据，不是预置资源 — 按保留策略自然过期，这里特意不删。实验的证据比实验的基础设施活得久。"],
+        ],
+        takeaway: "整个流程走完：度量 → 诊断 → 推荐 → 验证 → 安全发布 → 清理。这个循环可以一直转下去 — 这正是它的意义。",
+      },
     },
   },
   stepInsights: {
@@ -1601,6 +1988,7 @@ export const zh: Messages = {
     pickerSelected: (n) => `已选 ${n} 个`,
     pickerHint:
       "默认三件套始终运行。AgentCore 提供 13 个内置评估器，覆盖会话、轨迹和工具调用三个级别 — 可任选加入基线。",
+    docsLink: "内置评估器详细说明（AWS 文档）",
     default: "默认",
     customTag: "自定义 · LLM 评委",
     showCustomCode: "查看自定义评估器代码",
@@ -1904,6 +2292,59 @@ export const zh: Messages = {
       editorLoading: "编辑器加载中…",
       nameRequired: "名称不能为空",
       codeRequired: "Agent 代码不能为空",
+      registerExternal: "注册外部 Agent",
+      externalBadge: "外部",
+      externalEyebrow: "外部 Agent",
+      externalTitle: "注册外部 Agent",
+      externalHint:
+        "评估运行在任何地方的 Agent（Lambda、EKS、本地机器…）— 无需部署到 AgentCore。只要它通过 ADOT SDK 把 OTEL trace 发送到 CloudWatch，评估就能直接读取。",
+      bindingServiceName: "OTEL 服务名",
+      bindingServiceNameHint: "OTEL_RESOURCE_ATTRIBUTES 中的 service.name，例如 my-agent",
+      bindingLogGroup: "CloudWatch 日志组",
+      bindingLogGroupHint: "aws.log.group.names 中的日志组，例如 /aws/bedrock-agentcore/runtimes/my-agent",
+      bindingRegion: "区域（可选）",
+      registerBtn: "注册",
+      bindingRequired: "服务名和日志组不能为空",
+      externalNoDeploy: "通过遥测绑定注册 — 评估直接读取其现有 trace。",
+      invoke: {
+        sectionTitle: "调用端点（可选）",
+        sectionHint:
+          "配置 HTTP 端点后，数据集运行可以向该 Agent 发送流量 — 控制台逐条 POST prompt，然后评估产生的会话。",
+        url: "端点 URL",
+        urlInvalid: "URL 必须以 http:// 或 https:// 开头",
+        payloadTemplate: "请求体模板",
+        payloadTemplateHint: "{prompt} 和 {sessionId} 会在调用时替换为 JSON 编码的值。",
+        sessionHeader: "会话 ID 请求头",
+        headers: "额外请求头",
+        headerName: "请求头",
+        headerValue: "值",
+        addHeader: "+ 添加请求头",
+        removeHeader: "删除",
+        timeout: "超时（秒）",
+        privacyNote: "请求头的值会存储在本应用的本地数据库中 — 请勿放入长期有效的生产密钥。",
+        invokableBadge: "可调用",
+      },
+      telemetry: {
+        checkBtn: "检查遥测",
+        checking: "正在探测 CloudWatch…",
+        eyebrow: "遥测检查",
+        lookback: "回看",
+        logGroupCheck: "日志组存在",
+        spansCheck: "aws/spans 中的 span",
+        spansFound: (n) => `找到 ${n} 个 span`,
+        noSpans: "未找到 span",
+        sessionIdCheck: "session.id 存在",
+        sessionIdMissing: "缺失 — 评估无法按会话分组",
+        lastSpanAt: "最新 span",
+        operations: "操作类型",
+        hintsEyebrow: "提示",
+        allGood: "遥测正常 — 该 Agent 可以进行评估。",
+        snippetEyebrow: "Agent 侧配置",
+        snippetHint:
+          "在 Agent 进程中设置以下环境变量（需要 ADOT SDK：pip install aws-opentelemetry-distro，并用 opentelemetry-instrument 启动），并通过 OTEL baggage 传播会话 ID：",
+        copy: "复制",
+        copied: "已复制 ✓",
+      },
     },
     datasets: {
       title: "数据集",
@@ -1927,6 +2368,7 @@ export const zh: Messages = {
     evaluators: {
       title: "评估器",
       builtinEyebrow: "内置评估器",
+      docsLink: "内置评估器详细说明（AWS 文档）",
       customEyebrow: "自定义 LLM-judge 评估器",
       createTitle: "创建自定义评估器",
       instructions: "评审指令",
@@ -1971,6 +2413,21 @@ export const zh: Messages = {
       batchId: "批量评估 ID",
       selectRun: "选择一条运行记录查看评分。",
       triageBtn: "用洞察触诊 →",
+      scope: "评估哪些流量",
+      scopeDataset: "数据集（发送流量）",
+      scopeLookback: "最近时间窗口",
+      scopeSessions: "指定会话 ID",
+      scopeDatasetDisabled: "数据集运行需要已部署的 Agent，或配置了调用端点的外部 Agent。",
+      lookbackLabel: "回看小时数",
+      lookbackHint: "评估该窗口内 Agent 的现有流量（最多 500 个会话）— 不会发送新流量。",
+      sessionIdsLabel: "会话 ID（每行一个）",
+      sessionIdsHint: "只评估 Agent 现有流量中的这些会话。",
+      noEvaluableAgents: "没有可评估的 Agent — 请先在 Agents 页部署或注册。",
+      evaluableHint: "已部署的 Agent 和外部 Agent（通过遥测绑定注册）都可以评估。",
+      passiveStartedHint:
+        "对已落入 CloudWatch 的流量启动批量评估 — 不发起调用。每个账号同时只能有一个活跃的批量评估。",
+      sourceLookback: (h) => `回看 ${h} 小时`,
+      sourceSessions: (n) => `${n} 个指定会话`,
     },
     insights: {
       newEyebrow: "新建洞察报告",

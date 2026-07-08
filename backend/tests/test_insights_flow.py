@@ -274,13 +274,39 @@ def test_scope_validation(client: TestClient, monkeypatch: pytest.MonkeyPatch) -
         ).status_code
         == 404
     )
+    # Undeployed managed agent without a telemetry binding → 400.
     undeployed = _seed(client, deployed=False)
-    assert (
-        client.post(
-            "/api/insights", json={"agentId": undeployed, "runId": run_id}
-        ).status_code
-        == 400
+    resp = client.post("/api/insights", json={"agentId": undeployed, "runId": run_id})
+    assert resp.status_code == 400
+    assert "telemetry binding" in resp.json()["detail"]
+
+
+def test_lookback_report_on_external_agent(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Insights read telemetry, not the runtime — external agents qualify."""
+    fake = _patch(monkeypatch)
+    agent = client.post(
+        "/api/agents",
+        json={
+            "name": "Ext",
+            "kind": "external",
+            "binding": {"serviceName": "ext-svc", "logGroup": "/ext/lg"},
+        },
+    ).json()
+    resp = client.post(
+        "/api/insights", json={"agentId": agent["id"], "lookbackHours": 24}
     )
+    assert resp.status_code == 201
+    status = _wait_job(client, resp.json()["jobId"])
+    assert status["state"] == "completed", status.get("error")
+
+    cw = fake.start_calls[0]["dataSourceConfig"]["cloudWatchLogs"]
+    assert cw["serviceNames"] == ["ext-svc"]
+    assert cw["logGroupNames"] == ["aws/spans", "/ext/lg"]
+
+    report = client.get(f"/api/insights/{resp.json()['reportId']}").json()
+    assert report["status"] == "completed"
 
 
 def test_failure_marks_report_failed(

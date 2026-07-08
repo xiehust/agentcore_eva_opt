@@ -28,11 +28,15 @@ export function RunsPage() {
   const runs = useResource(() => api.listRuns(), []);
   const customEvaluators = useResource(() => api.listEvaluators(creds ?? null), []);
 
-  const deployedAgents = (agents.data?.agents ?? []).filter(
-    (a) => a.deployment?.status === "deployed",
+  // Evaluable = deployed (managed) OR registered by telemetry binding (external).
+  const evaluableAgents = (agents.data?.agents ?? []).filter(
+    (a) => a.deployment?.status === "deployed" || (a.kind === "external" && a.binding),
   );
   const [agentId, setAgentId] = useState<string>(state.runDraft?.agentId ?? "");
   const [datasetId, setDatasetId] = useState<string>(state.runDraft?.datasetId ?? "");
+  const [scope, setScope] = useState<"dataset" | "lookback" | "sessions">("dataset");
+  const [lookbackHours, setLookbackHours] = useState(24);
+  const [sessionIdsText, setSessionIdsText] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set(DEFAULT_EVALUATOR_IDS));
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
@@ -45,9 +49,26 @@ export function RunsPage() {
     });
   };
 
-  const effectiveAgentId = agentId || deployedAgents[0]?.id || "";
+  const effectiveAgentId = agentId || evaluableAgents[0]?.id || "";
+  const selectedAgent = evaluableAgents.find((a) => a.id === effectiveAgentId);
+  // Dataset (active) runs need an invoker: a deployed runtime, or (later) an
+  // external agent with an invoke endpoint configured.
+  const canRunDataset =
+    selectedAgent?.deployment?.status === "deployed" ||
+    (selectedAgent?.kind === "external" && Boolean(selectedAgent.binding?.invoke));
+  const effectiveScope = scope === "dataset" && !canRunDataset ? "lookback" : scope;
   const effectiveDatasetId = datasetId || datasets.data?.datasets[0]?.id || "";
-  const canStart = effectiveAgentId !== "" && effectiveDatasetId !== "" && selected.size > 0;
+  const parsedSessionIds = sessionIdsText
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const scopeReady =
+    effectiveScope === "dataset"
+      ? effectiveDatasetId !== ""
+      : effectiveScope === "lookback"
+        ? lookbackHours >= 1 && lookbackHours <= 336
+        : parsedSessionIds.length > 0;
+  const canStart = effectiveAgentId !== "" && scopeReady && selected.size > 0;
 
   const selectCls =
     "w-full rounded-md border border-line bg-ink-900/60 px-3 py-2 text-sm text-fog-100 outline-none focus:border-cyan/60";
@@ -63,19 +84,58 @@ export function RunsPage() {
             <label className="block">
               <span className="eyebrow mb-1 block">{t.console.runs.pickAgent}</span>
               <select value={effectiveAgentId} onChange={(e) => setAgentId(e.target.value)} className={selectCls}>
-                {deployedAgents.length === 0 && <option value="">—</option>}
-                {deployedAgents.map((a) => (
+                {evaluableAgents.length === 0 && <option value="">—</option>}
+                {evaluableAgents.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
+                    {a.kind === "external" ? ` (${t.console.agents.externalBadge})` : ""}
                   </option>
                 ))}
               </select>
-              {deployedAgents.length === 0 && (
-                <span className="mt-1 block text-[11px] text-warn">{t.console.runs.noDeployedAgents}</span>
+              {evaluableAgents.length === 0 && (
+                <span className="mt-1 block text-[11px] text-warn">{t.console.runs.noEvaluableAgents}</span>
               )}
-              <span className="mt-1 block text-[11px] text-fog-500">{t.console.runs.onlyDeployedHint}</span>
+              <span className="mt-1 block text-[11px] text-fog-500">{t.console.runs.evaluableHint}</span>
             </label>
-            <label className="block">
+            <div className="block">
+              <span className="eyebrow mb-1 block">{t.console.runs.scope}</span>
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t.console.runs.scope}>
+                {(
+                  [
+                    ["dataset", t.console.runs.scopeDataset, !canRunDataset],
+                    ["lookback", t.console.runs.scopeLookback, false],
+                    ["sessions", t.console.runs.scopeSessions, false],
+                  ] as const
+                ).map(([key, label, disabled]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={effectiveScope === key}
+                    disabled={disabled}
+                    onClick={() => setScope(key)}
+                    className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
+                      effectiveScope === key
+                        ? "border-cyan/60 bg-cyan/10 text-cyan-soft"
+                        : disabled
+                          ? "cursor-not-allowed border-line bg-ink-900/40 text-fog-600"
+                          : "border-line bg-ink-750/40 text-fog-300 hover:border-cyan/40"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {!canRunDataset && (
+                <span className="mt-1 block text-[11px] text-fog-500">
+                  {t.console.runs.scopeDatasetDisabled}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {effectiveScope === "dataset" && (
+            <label className="block sm:w-1/2">
               <span className="eyebrow mb-1 block">{t.console.runs.pickDataset}</span>
               <select value={effectiveDatasetId} onChange={(e) => setDatasetId(e.target.value)} className={selectCls}>
                 {(datasets.data?.datasets ?? []).length === 0 && <option value="">—</option>}
@@ -89,7 +149,36 @@ export function RunsPage() {
                 <span className="mt-1 block text-[11px] text-warn">{t.console.runs.noDatasets}</span>
               )}
             </label>
-          </div>
+          )}
+          {effectiveScope === "lookback" && (
+            <label className="block sm:w-1/3">
+              <span className="eyebrow mb-1 block">{t.console.runs.lookbackLabel}</span>
+              <input
+                type="number"
+                min={1}
+                max={336}
+                value={lookbackHours}
+                onChange={(e) => setLookbackHours(Number(e.target.value))}
+                className={selectCls}
+                data-testid="lookback-hours"
+              />
+              <span className="mt-1 block text-[11px] text-fog-500">{t.console.runs.lookbackHint}</span>
+            </label>
+          )}
+          {effectiveScope === "sessions" && (
+            <label className="block">
+              <span className="eyebrow mb-1 block">{t.console.runs.sessionIdsLabel}</span>
+              <textarea
+                value={sessionIdsText}
+                onChange={(e) => setSessionIdsText(e.target.value)}
+                rows={3}
+                spellCheck={false}
+                className={`${selectCls} font-mono text-xs`}
+                data-testid="session-ids"
+              />
+              <span className="mt-1 block text-[11px] text-fog-500">{t.console.runs.sessionIdsHint}</span>
+            </label>
+          )}
 
           <div>
             <span className="eyebrow mb-2 block">{t.console.runs.pickEvaluators}</span>
@@ -144,7 +233,9 @@ export function RunsPage() {
               run={async (onProgress) => {
                 const { jobId, runId } = await api.createRun({
                   agentId: effectiveAgentId,
-                  datasetId: effectiveDatasetId,
+                  ...(effectiveScope === "dataset" && { datasetId: effectiveDatasetId }),
+                  ...(effectiveScope === "lookback" && { lookbackHours }),
+                  ...(effectiveScope === "sessions" && { sessionIds: parsedSessionIds }),
                   evaluators: Array.from(selected),
                   creds: creds ?? null,
                 });
@@ -158,7 +249,9 @@ export function RunsPage() {
               }}
             />
             )}
-            <p className="mt-1.5 text-[11px] leading-relaxed text-fog-500">{t.console.runs.startedHint}</p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-fog-500">
+              {effectiveScope === "dataset" ? t.console.runs.startedHint : t.console.runs.passiveStartedHint}
+            </p>
           </div>
         </div>
       </Card>
@@ -189,7 +282,7 @@ export function RunsPage() {
                 }`}
               >
                 <span className="text-sm font-semibold text-fog-100">{run.agentName}</span>
-                <span className="font-mono text-[11px] text-fog-500">× {run.datasetName}</span>
+                <span className="font-mono text-[11px] text-fog-500">× {runSourceLabel(run, t)}</span>
                 <Badge
                   variant={STATUS_VARIANT[run.status]}
                   dot
@@ -210,6 +303,18 @@ export function RunsPage() {
       </Card>
     </div>
   );
+}
+
+/** "DS" (dataset name) | "Lookback 24h" | "5 sessions (explicit)". */
+function runSourceLabel(run: RunRecord, t: ReturnType<typeof useLang>["t"]): string {
+  const source = run.source ?? "dataset";
+  if (source.startsWith("lookback:")) {
+    return t.console.runs.sourceLookback(Number(source.slice("lookback:".length)) || 0);
+  }
+  if (source.startsWith("sessions:")) {
+    return t.console.runs.sourceSessions(Number(source.slice("sessions:".length)) || 0);
+  }
+  return run.datasetName || "—";
 }
 
 function RunDetail({ run }: { run: RunRecord }) {

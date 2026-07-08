@@ -125,6 +125,25 @@ Agent、数据集、运行历史和实验都保存在后端的 SQLite 库
 从原始 notebook 文件实时读取(`GET /api/samples/agent?variant=v1|v2`、
 `GET /api/samples/datasets`)。
 
+### 评估外部 Agent
+
+只要 OTEL trace 落入 CloudWatch,任何 agent 都可以被评估 —— **无需**部署到
+AgentCore runtime(Lambda、EKS、本地机器均可):
+
+1. **注册** — 在 Agents 页点击「注册外部 Agent」,填写遥测绑定:OTEL 的
+   `service.name` 和 `aws.log.group.names` 中的 CloudWatch 日志组。表单内附
+   可复制的 agent 侧配置片段(ADOT 环境变量 + `session.id` baggage 代码)。
+2. **检查遥测** — agent 卡片上的一键 CloudWatch 探测,在花费评估费用之前
+   先确认 span 确实落入 `aws/spans` 且带有 `session.id`。
+3. **运行评估** — 被动模式(回看时间窗口或指定会话 ID,评估现有流量,
+   零调用)或主动模式(配置可选的 HTTP 调用端点后,数据集运行会逐条 POST
+   prompt 到该 agent,再对这些会话精确评分)。
+
+本地可运行的参考实现见 [`demo-agent/`](demo-agent/README.md):基于
+Claude Agent SDK(Bedrock 后端)的 FastAPI agent,手动产生 `gen_ai` span 并经
+ADOT SDK 导出。`backend/scripts/e2e_external.py` 可对真实 AWS 驱动整条链路
+(**会产生费用**;`finally` 中始终清理)。
+
 每一步都会展示它对应的真实 `boto3` 调用,因此无论哪种模式,本站都可当作
 一份 API 参考。
 

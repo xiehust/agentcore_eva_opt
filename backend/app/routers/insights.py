@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException
 from .. import agentcore, db, jobs
 from ..aws import data, get_session
 from ..models import InsightReportCreateRequest
+from ..telemetry import resolve_telemetry
 
 router = APIRouter(prefix="/api", tags=["insights"])
 
@@ -59,9 +60,12 @@ def create_insight_report(req: InsightReportCreateRequest) -> dict[str, Any]:
     agent = db.get_agent(req.agentId)
     if agent is None:
         raise HTTPException(status_code=404, detail="unknown agent id")
-    deployment = agent.get("deployment") or {}
-    if deployment.get("status") != "deployed":
-        raise HTTPException(status_code=400, detail="agent is not deployed")
+    # Insights read telemetry, not the runtime — any agent whose traces land
+    # in CloudWatch qualifies (deployed managed OR external with a binding).
+    try:
+        service_name, log_group = resolve_telemetry(agent)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     insights = req.insights or list(agentcore.INSIGHT_TYPES)
     unknown = [i for i in insights if i not in agentcore.INSIGHT_TYPES]
@@ -119,8 +123,8 @@ def create_insight_report(req: InsightReportCreateRequest) -> dict[str, Any]:
             resp = agentcore.start_insights_evaluation(
                 client,
                 name=f"insights_{report_id[:8]}",
-                service_name=deployment["serviceName"],
-                log_groups=["aws/spans", deployment["logGroup"]],
+                service_name=service_name,
+                log_groups=["aws/spans", log_group],
                 insights=insights,
                 session_ids=session_ids,
                 time_range=(

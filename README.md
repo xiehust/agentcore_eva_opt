@@ -142,6 +142,29 @@ Agents, datasets, run history, and experiments live in the backend's SQLite DB
 available as read-only samples served from the original notebook files
 (`GET /api/samples/agent?variant=v1|v2`, `GET /api/samples/datasets`).
 
+### Evaluating external agents
+
+Any agent whose OTEL traces land in CloudWatch can be evaluated — it does
+**not** have to run on the AgentCore runtime (Lambda, EKS, your laptop, …):
+
+1. **Register** it on the Agents page (*"Register external agent"*) with its
+   telemetry binding: the OTEL `service.name` and the CloudWatch log group
+   from `aws.log.group.names`. The form shows a copyable agent-side setup
+   snippet (ADOT env vars + the `session.id` baggage line).
+2. **Check telemetry** on the agent card — a one-click CloudWatch probe that
+   verifies spans actually land in `aws/spans` and carry `session.id`,
+   *before* an evaluation is spent on empty data.
+3. **Run evaluations** — passive (a lookback time window or explicit session
+   IDs over existing traffic; zero invocations) or active (configure an
+   optional HTTP invoke endpoint and dataset runs POST each prompt to the
+   agent, then score exactly those sessions).
+
+A locally-runnable reference implementation lives in
+[`demo-agent/`](demo-agent/README.md): a Claude Agent SDK (Bedrock) agent
+behind FastAPI that emits manual `gen_ai` spans and exports them via the ADOT
+SDK. `backend/scripts/e2e_external.py` drives the whole chain against real AWS
+(**incurs cost**; always cleans up in `finally`).
+
 Every step reveals the exact `boto3` call it stands in for, so the site doubles
 as an API reference in either mode.
 

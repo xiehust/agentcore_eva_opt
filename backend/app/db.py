@@ -73,6 +73,8 @@ def _connect() -> sqlite3.Connection:
             requirements TEXT NOT NULL DEFAULT '[]',
             deployment   TEXT,
             config       TEXT,
+            kind         TEXT NOT NULL DEFAULT 'managed',
+            binding      TEXT,
             created_at   REAL NOT NULL,
             updated_at   REAL NOT NULL
         );
@@ -98,6 +100,7 @@ def _connect() -> sqlite3.Connection:
             status        TEXT NOT NULL,
             error         TEXT,
             job_id        TEXT,
+            source        TEXT NOT NULL DEFAULT 'dataset',
             created_at    REAL NOT NULL,
             updated_at    REAL NOT NULL
         );
@@ -132,10 +135,17 @@ def _connect() -> sqlite3.Connection:
         );
         """
     )
-    # Lightweight migration: agents.config was added after the table shipped.
+    # Lightweight migrations: columns added after the tables shipped.
     cols = [r[1] for r in _conn.execute("PRAGMA table_info(agents)")]
     if "config" not in cols:
         _conn.execute("ALTER TABLE agents ADD COLUMN config TEXT")
+    if "kind" not in cols:
+        _conn.execute("ALTER TABLE agents ADD COLUMN kind TEXT NOT NULL DEFAULT 'managed'")
+    if "binding" not in cols:
+        _conn.execute("ALTER TABLE agents ADD COLUMN binding TEXT")
+    run_cols = [r[1] for r in _conn.execute("PRAGMA table_info(runs)")]
+    if "source" not in run_cols:
+        _conn.execute("ALTER TABLE runs ADD COLUMN source TEXT NOT NULL DEFAULT 'dataset'")
     _conn.commit()
     return _conn
 
@@ -246,6 +256,10 @@ def _agent_row_to_dict(row: sqlite3.Row, *, include_code: bool = True) -> dict[s
         "deployment": json.loads(row["deployment"]) if row["deployment"] else None,
         # {systemPrompt, toolDescriptions} — read by recommendations + bundles.
         "config": json.loads(row["config"]) if row["config"] else None,
+        # 'managed' (deployed to AgentCore runtime) or 'external' (registered
+        # by telemetry binding only — evaluation reads its existing traces).
+        "kind": row["kind"],
+        "binding": json.loads(row["binding"]) if row["binding"] else None,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -262,6 +276,8 @@ def create_agent(
     code: str,
     requirements: list[str] | None = None,
     config: dict[str, Any] | None = None,
+    kind: str = "managed",
+    binding: dict[str, Any] | None = None,
 ) -> None:
     now = time.time()
     with _lock:
@@ -269,8 +285,8 @@ def create_agent(
         conn.execute(
             """
             INSERT INTO agents (id, name, description, code, requirements,
-                                deployment, config, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+                                deployment, config, kind, binding, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
             """,
             (
                 agent_id,
@@ -279,6 +295,8 @@ def create_agent(
                 code,
                 json.dumps(requirements or []),
                 json.dumps(config) if config is not None else None,
+                kind,
+                json.dumps(binding) if binding is not None else None,
                 now,
                 now,
             ),
@@ -309,6 +327,7 @@ def update_agent(
     code: str | None = None,
     requirements: list[str] | None = None,
     config: dict[str, Any] | None = None,
+    binding: dict[str, Any] | None = None,
 ) -> None:
     sets: list[str] = ["updated_at = ?"]
     params: list[Any] = [time.time()]
@@ -327,6 +346,9 @@ def update_agent(
     if config is not None:
         sets.append("config = ?")
         params.append(json.dumps(config))
+    if binding is not None:
+        sets.append("binding = ?")
+        params.append(json.dumps(binding))
     params.append(agent_id)
     with _lock:
         conn = _connect()
@@ -445,6 +467,8 @@ def _run_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "status": row["status"],
         "error": row["error"],
         "jobId": row["job_id"],
+        # "dataset" | "lookback:<hours>" | "sessions:<count>"
+        "source": row["source"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -461,6 +485,7 @@ def create_run(
     evaluators: list[str],
     status: str = "pending",
     job_id: str | None = None,
+    source: str = "dataset",
 ) -> None:
     now = time.time()
     with _lock:
@@ -468,8 +493,9 @@ def create_run(
         conn.execute(
             """
             INSERT INTO runs (id, agent_id, dataset_id, agent_name, dataset_name,
-                              agent_arn, evaluators, status, job_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              agent_arn, evaluators, status, job_id, source,
+                              created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
@@ -481,6 +507,7 @@ def create_run(
                 json.dumps(evaluators),
                 status,
                 job_id,
+                source,
                 now,
                 now,
             ),
