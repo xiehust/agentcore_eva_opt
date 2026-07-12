@@ -1,9 +1,8 @@
-# AgentCore Optimization · Interactive (Lab 4)
+# AgentCore Evalution and Optimization Demo Platform
 
 **English** · [中文](./README.zh-CN.md)
 
-An interactive rebuild of the AWS Bedrock AgentCore "Lab 4 — Agent Optimization"
-notebook. It walks through the complete optimization journey for an **HR
+It walks through the complete optimization journey for an **HR
 Assistant** agent — deploy → baseline traffic → batch evaluation → **failure
 insights** → AI recommendations → configuration bundles → A/B testing
 (config-bundle routing and target-based canary) → promotion → cleanup — as a

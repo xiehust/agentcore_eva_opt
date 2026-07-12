@@ -1,8 +1,7 @@
-# AgentCore 优化 · 交互演练(Lab 4)
+# AgentCore 评估和优化演示平台 
 
 [English](./README.md) · **中文**
 
-AWS Bedrock AgentCore「Lab 4 — Agent Optimization」notebook 的交互式重构。
 以一个 **HR 助手** agent 为主角,走完完整的优化旅程 —— 部署 → 基线流量 →
 批量评估 → **失败洞察** → AI 推荐 → 配置包 → A/B 测试(配置包路由 +
 目标路由金丝雀)→ 提升 → 清理 —— 以引导式、带动画的 Web 体验呈现。
