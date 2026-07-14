@@ -14,6 +14,7 @@ import {
   legacyItems,
   type ABTestMetric,
   type AgentRecord,
+  type ExperimentKind,
   type ExperimentRecord,
   type ExperimentStage,
   type LiveApi,
@@ -58,6 +59,7 @@ function ExperimentList() {
   const agents = useResource(() => api.listAgents(), []);
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState("");
+  const [kind, setKind] = useState<ExperimentKind>("config_bundle");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -76,6 +78,7 @@ function ExperimentList() {
       const created = await api.createExperiment({
         name: name.trim() || `Experiment ${new Date().toISOString().slice(0, 10)}`,
         agentId: effectiveAgentId,
+        kind,
       });
       dispatch({ type: "OPEN_EXPERIMENT", experimentId: created.id });
     } catch (e) {
@@ -124,6 +127,47 @@ function ExperimentList() {
             )}
           </label>
         </div>
+        <fieldset className="mt-4">
+          <legend className="eyebrow mb-2 block">{t.console.experiments.kindLabel}</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(
+              [
+                {
+                  value: "config_bundle" as const,
+                  label: t.console.experiments.kindConfigBundle,
+                  desc: t.console.experiments.kindConfigBundleDesc,
+                },
+                {
+                  value: "target_based" as const,
+                  label: t.console.experiments.kindTargetBased,
+                  desc: t.console.experiments.kindTargetBasedDesc,
+                },
+              ]
+            ).map((opt) => (
+              <label
+                key={opt.value}
+                className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 text-sm ${
+                  kind === opt.value
+                    ? "border-cyan/60 bg-cyan/10 text-fog-100"
+                    : "border-line bg-ink-900/40 text-fog-400"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="experiment-kind"
+                  value={opt.value}
+                  checked={kind === opt.value}
+                  onChange={() => setKind(opt.value)}
+                  className="mt-0.5 accent-cyan"
+                />
+                <span className="min-w-0">
+                  <span className="block font-display font-semibold">{opt.label}</span>
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-fog-500">{opt.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <div className="mt-4">
           <Button disabled={busy || !effectiveAgentId || missingConfig} onClick={() => void create()}>
             {t.console.experiments.create}
@@ -247,6 +291,10 @@ function ExperimentDetail({ experimentId, onClose }: { experimentId: string; onC
 
   const ctx: StageContext = { api, creds: creds ?? null, exp, agent, reload: experiment.reload };
   const idx = stageIndex(exp.stage);
+  const isTarget = exp.kind === "target_based";
+  const kindLabel = isTarget
+    ? t.console.experiments.kindTargetBased
+    : t.console.experiments.kindConfigBundle;
 
   return (
     <div className="space-y-4">
@@ -266,24 +314,60 @@ function ExperimentDetail({ experimentId, onClose }: { experimentId: string; onC
         }
       >
         <div className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px] text-fog-500">
+          <Badge variant={isTarget ? "cyan" : "neutral"} mono>
+            {kindLabel}
+          </Badge>
           <span>{exp.agentName}</span>
           {agent.deployment?.runtimeArn && <span className="truncate">{agent.deployment.runtimeArn}</span>}
           {exp.artifacts.gatewayId && <span>gw: {exp.artifacts.gatewayId}</span>}
           {exp.artifacts.bundleAbTestId && <span>ab: {exp.artifacts.bundleAbTestId}</span>}
-          {exp.artifacts.targetAbTestId && <span>canary: {exp.artifacts.targetAbTestId}</span>}
+          {exp.artifacts.targetAbTestId && <span>target-ab: {exp.artifacts.targetAbTestId}</span>}
         </div>
       </Card>
 
-      <RecommendStage ctx={ctx} />
-      {idx >= stageIndex("bundles") && <BundlesStage ctx={ctx} />}
-      {idx >= stageIndex("abtest") && <AbTestStage ctx={ctx} />}
-      {idx >= stageIndex("promoted") && <CanaryStage ctx={ctx} />}
+      {isTarget ? (
+        <TargetBasedStage ctx={ctx} />
+      ) : (
+        <>
+          <RecommendStage ctx={ctx} />
+          {idx >= stageIndex("bundles") && <BundlesStage ctx={ctx} />}
+          {idx >= stageIndex("abtest") && <AbTestStage ctx={ctx} />}
+          {exp.artifacts.promotedVersionId && exp.stage !== "done" && (
+            <ConfigBundleFinishCard ctx={ctx} />
+          )}
+        </>
+      )}
       {exp.stage === "done" && (
         <Card title={t.console.experiments.doneTitle} accent="cyan">
           <p className="text-sm text-fog-400">{t.console.experiments.doneBody}</p>
         </Card>
       )}
     </div>
+  );
+}
+
+/** Config-bundle experiments end at promote; this card lets the user mark the
+ * experiment done and jump to Cleanup (the config-bundle flow has no canary). */
+function ConfigBundleFinishCard({ ctx }: { ctx: StageContext }) {
+  const { t } = useLang();
+  const { api, exp } = ctx;
+  const { dispatch } = useConsole();
+  const finish = async () => {
+    await api.updateExperiment(exp.id, { stage: "done" });
+    ctx.reload();
+  };
+  return (
+    <Card title={t.console.experiments.doneTitle} accent="cyan">
+      <p className="mb-3 text-sm text-fog-400">{t.console.experiments.doneBody}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" size="sm" onClick={() => void finish()}>
+          {t.console.experiments.finishBtn}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "GO_SECTION", section: "cleanup" })}>
+          {t.console.experiments.goCleanup}
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -689,17 +773,18 @@ function AbTestStage({ ctx }: { ctx: StageContext }) {
   );
 }
 
-// ─── Stage 4: Target-routing canary ─────────────────────────────────────────
-function CanaryStage({ ctx }: { ctx: StageContext }) {
+// ─── Target-based A/B (standalone: own gateway + two runtimes, 80/20) ─────────
+function TargetBasedStage({ ctx }: { ctx: StageContext }) {
   const { t } = useLang();
-  const { api, creds, exp } = ctx;
+  const { api, creds, exp, agent } = ctx;
   const a = exp.artifacts;
   const agents = useResource(() => api.listAgents(), []);
   const datasets = useResource(() => api.listDatasets(), []);
   const [challengerId, setChallengerId] = useState("");
   const [datasetId, setDatasetId] = useState("");
-  const [weight, setWeight] = useState(a.weights?.treatment ?? 10);
+  const [weight, setWeight] = useState(a.weights?.treatment ?? 20);
   const [error, setError] = useState<string | null>(null);
+  const { dispatch } = useConsole();
 
   const challengers = (agents.data?.agents ?? []).filter(
     (x) => x.deployment?.status === "deployed" && x.id !== exp.agentId,
@@ -708,6 +793,7 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
   const effectiveDatasetId =
     datasetId || a.targetTrafficDatasetId || datasets.data?.datasets[0]?.id || "";
   const names = experimentNames(exp.id, exp.agentName, exp.challengerAgentName ?? undefined);
+  const promoted = a.weights?.treatment === 100;
 
   const pickChallenger = async (id: string) => {
     setChallengerId(id);
@@ -720,22 +806,57 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
     }
   };
 
+  // Self-contained setup: own gateway + v1 target (champion) + v1 eval, then the
+  // v2 target (challenger) + v2 eval + a target A/B (80/20). No config-bundle
+  // test is created, and no bundleAbTestId is passed (standalone — nothing to stop).
   const setup = async (onProgress: (m: string) => void) => {
+    const dep = agent.deployment;
+    onProgress("creating gateway + v1 target (champion) + v1 online eval");
+    const { jobId: gwJob } = await api.gatewaySetup({
+      name: names.gateway,
+      roleArn: a.roleArn ?? dep?.roleArn ?? "",
+      agentArn: dep?.runtimeArn,
+      targetName: names.targetV1,
+      onlineEvalName: names.onlineEvalV1,
+      logGroup: dep?.logGroup,
+      serviceName: dep?.serviceName,
+      description: `Target-based experiment ${exp.id} gateway`,
+      creds,
+    });
+    await putArtifacts(ctx, { gatewaySetupJobId: gwJob, targetNameV1: names.targetV1 });
+    const gw = await api.pollJob<{
+      gatewayId: string;
+      gatewayArn: string;
+      targetId: string;
+      onlineEvalArn: string;
+      onlineEvalId: string;
+      roleArn: string;
+    }>(gwJob, { onProgress: (s) => s.progress && onProgress(s.progress) });
+    await putArtifacts(ctx, {
+      gatewayId: gw.gatewayId,
+      gatewayArn: gw.gatewayArn,
+      roleArn: gw.roleArn,
+      targetIdV1: gw.targetId,
+      onlineEvalArnV1: gw.onlineEvalArn,
+      onlineEvalIdV1: gw.onlineEvalId,
+    });
+
+    onProgress("adding v2 target (challenger) + v2 eval + target A/B (80/20)");
     const challenger = await api.getAgent(exp.challengerAgentId!);
     const cd = challenger.deployment;
     const { jobId } = await api.abtestTargetSetup({
       name: names.targetAbTest,
-      gatewayId: a.gatewayId,
-      gatewayArn: a.gatewayArn,
-      roleArn: a.roleArn,
+      gatewayId: gw.gatewayId,
+      gatewayArn: gw.gatewayArn,
+      roleArn: gw.roleArn,
       agentArnV2: cd?.runtimeArn,
-      targetNameV1: a.targetNameV1,
+      targetNameV1: names.targetV1,
       targetNameV2: names.targetV2,
       onlineEvalNameV2: names.onlineEvalV2,
       logGroupV2: cd?.logGroup,
       serviceNameV2: cd?.serviceName,
-      onlineEvalArnV1: a.onlineEvalArnV1,
-      bundleAbTestId: a.bundleAbTestId,
+      onlineEvalArnV1: gw.onlineEvalArn,
+      // bundleAbTestId intentionally omitted — standalone target-based A/B.
       creds,
     });
     await putArtifacts(ctx, { targetSetupJobId: jobId, targetNameV2: names.targetV2 });
@@ -752,9 +873,9 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
         onlineEvalArnV2: result.onlineEvalArnV2,
         onlineEvalIdV2: result.onlineEvalIdV2,
         targetAbTestId: result.abTestId,
-        weights: { control: 90, treatment: 10 },
+        weights: { control: 80, treatment: 20 },
       },
-      "canary",
+      "abtest",
     );
     return result;
   };
@@ -762,9 +883,11 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
   const sendTraffic = async (onProgress: (m: string) => void) => {
     const dataset = datasets.data?.datasets.find((d) => d.id === effectiveDatasetId);
     if (!dataset) throw new Error(t.console.experiments.abtest.noDatasets);
+    // Traffic hits the gateway's v1 path; the A/B test (gatewayFilter on v1)
+    // splits it 80/20 across the two target runtimes.
     const { jobId } = await api.gatewayTraffic({
       gatewayId: a.gatewayId,
-      targetName: a.targetNameV2,
+      targetName: a.targetNameV1,
       prompts: legacyItems(dataset).map((i) => ({ prompt: i.prompt, context: i.context })),
       creds,
     });
@@ -772,7 +895,7 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
     const result = await api.pollJob<{ count: number }>(jobId, {
       onProgress: (s) => s.progress && onProgress(s.progress),
     });
-    await putArtifacts(ctx, { targetTrafficCount: result.count }, "canary_monitor");
+    await putArtifacts(ctx, { targetTrafficCount: result.count }, "monitor");
     return result;
   };
 
@@ -808,22 +931,26 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
 
   const selectCls =
     "w-full rounded-md border border-line bg-ink-900/60 px-3 py-2 text-sm text-fog-100 outline-none focus:border-cyan/60";
-  const active = exp.stage === "promoted" || exp.stage === "canary" || exp.stage === "canary_monitor";
-  const { dispatch } = useConsole();
+  const active = exp.stage !== "done";
 
   return (
-    <Card eyebrow={t.console.experiments.stages.canary} title={t.console.experiments.canary.title} accent={active ? "orange" : "none"}>
+    <Card
+      eyebrow={t.console.experiments.kindTargetBased}
+      title={t.console.experiments.targetBased.title}
+      accent={active ? "orange" : "none"}
+    >
+      <p className="mb-3 text-[11px] leading-relaxed text-fog-500">{t.console.experiments.targetBased.intro}</p>
       {error && (
         <div role="alert" className="mb-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
           {error}
         </div>
       )}
 
-      {/* Challenger picker */}
+      {/* Challenger picker + setup */}
       {!a.targetAbTestId && (
         <div className="grid gap-3 sm:grid-cols-[280px_auto]">
           <label className="block">
-            <span className="eyebrow mb-1 block">{t.console.experiments.canary.pickChallenger}</span>
+            <span className="eyebrow mb-1 block">{t.console.experiments.targetBased.pickChallenger}</span>
             <select
               value={effectiveChallengerId}
               onChange={(e) => void pickChallenger(e.target.value)}
@@ -837,28 +964,35 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
               ))}
             </select>
             {challengers.length === 0 && !agents.loading && (
-              <span className="mt-1 block text-[11px] text-warn">{t.console.experiments.canary.noChallenger}</span>
+              <span className="mt-1 block text-[11px] text-warn">{t.console.experiments.targetBased.noChallenger}</span>
             )}
           </label>
           <div className="self-end">
             {exp.challengerAgentId && (
-              <LiveRunButton label={t.console.experiments.canary.setupBtn} doneLabel="✓" run={setup} />
+              <LiveRunButton label={t.console.experiments.targetBased.setupBtn} doneLabel="✓" run={setup} />
             )}
           </div>
+          <p className="text-[11px] leading-relaxed text-fog-500 sm:col-span-2">
+            {t.console.experiments.targetBased.setupHint}
+          </p>
         </div>
       )}
 
       {a.targetAbTestId && (
         <>
-          <div className="font-mono text-[11px] text-fog-500">
-            challenger {exp.challengerAgentName} · target {a.targetNameV2} · A/B {a.targetAbTestId}
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-fog-500">
+            <Badge variant="cyan" mono>
+              {t.console.experiments.targetBased.splitLabel}
+            </Badge>
+            <span>challenger {exp.challengerAgentName} · target {a.targetNameV2} · A/B {a.targetAbTestId}</span>
           </div>
 
           {/* Traffic */}
           <div className="mt-4 border-t border-line/60 pt-4">
-            <span className="eyebrow mb-2 block">{t.console.experiments.canary.trafficTitle}</span>
+            <span className="eyebrow mb-2 block">{t.console.experiments.targetBased.trafficTitle}</span>
             <div className="grid gap-3 sm:grid-cols-[280px_auto]">
               <select value={effectiveDatasetId} onChange={(e) => setDatasetId(e.target.value)} className={selectCls}>
+                {(datasets.data?.datasets ?? []).length === 0 && <option value="">—</option>}
                 {datasets.data?.datasets.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name} ({t.console.datasets.itemCount(d.items.length)})
@@ -872,12 +1006,15 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
                 run={sendTraffic}
               />
             </div>
+            {(datasets.data?.datasets ?? []).length === 0 && !datasets.loading && (
+              <p className="mt-1 text-[11px] text-warn">{t.console.experiments.abtest.noDatasets}</p>
+            )}
           </div>
 
           {/* Monitor */}
           {(a.targetTrafficCount !== undefined || a.targetMetrics) && (
             <div className="mt-4 border-t border-line/60 pt-4">
-              <span className="eyebrow mb-2 block">{t.console.experiments.canary.monitorTitle}</span>
+              <span className="eyebrow mb-2 block">{t.console.experiments.targetBased.monitorTitle}</span>
               <p className="mb-2 text-[11px] text-fog-500">{t.console.experiments.abtest.aggregationHint}</p>
               {!a.targetMetrics && (
                 <LiveRunButton label={t.console.experiments.abtest.monitorBtn} doneLabel="✓" run={monitor} />
@@ -885,27 +1022,45 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
               {a.targetMetrics && (
                 <LazyABChart
                   metrics={a.targetMetrics}
-                  controlLabel={t.console.experiments.canary.v1Label}
-                  treatmentLabel={t.console.experiments.canary.v2Label}
+                  controlLabel={t.console.experiments.targetBased.v1Label}
+                  treatmentLabel={t.console.experiments.targetBased.v2Label}
                 />
               )}
             </div>
           )}
 
-          {/* Weights */}
+          {/* Promote winner (stop → 100%) */}
           {a.targetMetrics && (
             <div className="mt-4 border-t border-line/60 pt-4">
-              <span className="eyebrow mb-2 block">{t.console.experiments.canary.weightsTitle}</span>
-              <p className="mb-2 text-[11px] text-fog-500">{t.console.experiments.canary.rolloutHint}</p>
+              <span className="eyebrow mb-2 block">{t.console.experiments.targetBased.promoteTitle}</span>
+              <p className="mb-2 text-[11px] text-fog-500">{t.console.experiments.targetBased.promoteHint}</p>
+              {promoted ? (
+                <Badge variant="ok" dot mono>
+                  {t.console.experiments.targetBased.promoted}
+                </Badge>
+              ) : (
+                <Button size="sm" onClick={() => void shiftWeight(100)}>
+                  {t.console.experiments.targetBased.promoteBtn}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Phased rollout (optional) */}
+          {a.targetMetrics && !promoted && (
+            <div className="mt-4 border-t border-line/60 pt-4">
+              <span className="eyebrow mb-2 block">{t.console.experiments.targetBased.rolloutTitle}</span>
+              <p className="mb-2 text-[11px] text-fog-500">{t.console.experiments.targetBased.rolloutOptional}</p>
+              <p className="mb-2 text-[11px] text-fog-500">{t.console.experiments.targetBased.rolloutHint}</p>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="cyan" mono>
-                  {t.console.experiments.canary.currentWeight(weight)}
+                  {t.console.experiments.targetBased.currentWeight(weight)}
                 </Badge>
-                {[10, 50, 100]
+                {[20, 50, 100]
                   .filter((w) => w !== weight)
                   .map((w) => (
                     <Button key={w} size="sm" variant="secondary" onClick={() => void shiftWeight(w)}>
-                      {t.console.experiments.canary.setWeight(w)}
+                      {t.console.experiments.targetBased.setWeight(w)}
                     </Button>
                   ))}
               </div>
@@ -918,7 +1073,7 @@ function CanaryStage({ ctx }: { ctx: StageContext }) {
       {exp.stage !== "done" && (
         <div className="mt-4 flex flex-wrap gap-2 border-t border-line/60 pt-4">
           <Button variant="secondary" size="sm" onClick={() => void finish()}>
-            {a.targetAbTestId ? t.console.experiments.doneTitle : t.console.experiments.canary.skipBtn}
+            {t.console.experiments.finishBtn}
           </Button>
           <Button
             variant="ghost"

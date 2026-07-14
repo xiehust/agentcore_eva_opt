@@ -23,7 +23,12 @@ const SETUP_STAGES: SimStage[] = [
   { key: "ab", label: "Creating A/B test (C 50% / T1 50%)", ms: 460, terminal: "RUNNING" },
 ];
 
-/** Step 7 — config-bundle A/B test: setup, traffic, results, promote. */
+/** Step 9 — config-bundle A/B test: setup, traffic, results, promote.
+ *
+ * A self-contained config-bundle flow (ONE runtime, 50/50, variantConfiguration.
+ * configurationBundle). It is independent of the standalone target-based A/B in
+ * Step 10 — it neither shares that step's gateway nor requires it to run. Copy
+ * for this step lives in i18n (`step7`, `steps.bundleAB`). */
 export function Step7BundleAB() {
   const { state, dispatch } = useJourney();
   const { t } = useLang();

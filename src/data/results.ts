@@ -51,21 +51,22 @@ export const BUNDLE_AB_RESULTS: ABMetric[] = [
 ];
 
 /**
- * Target-based routing A/B results (Step 8): v1 (Control, 90%) vs
- * v2 (Treatment, 10% canary — adds escalate_to_hr_manager + better prompt).
- * Smaller canary sample → wider variance, one metric not yet significant.
+ * Target-based routing A/B results (Step 8): v1 (Control, 80%) vs
+ * v2 (Treatment, 20% — adds escalate_to_hr_manager + better prompt).
+ * The 20% treatment slice still has fewer sessions than control, so one
+ * metric lands just short of significance — a realistic 80/20 read.
  */
 export const TARGET_AB_RESULTS: ABMetric[] = [
   {
     evaluatorId: "Builtin.GoalSuccessRate",
     label: "Goal Success Rate",
-    control: { name: "C", mean: 0.86, sampleSize: 46 },
+    control: { name: "C", mean: 0.86, sampleSize: 42 },
     variants: [
       {
         name: "T1",
         mean: 0.93,
-        sampleSize: 6,
-        pValue: 0.048,
+        sampleSize: 11,
+        pValue: 0.039,
         percentChange: 8.1,
         isSignificant: true,
       },
@@ -74,13 +75,13 @@ export const TARGET_AB_RESULTS: ABMetric[] = [
   {
     evaluatorId: "Builtin.Helpfulness",
     label: "Helpfulness",
-    control: { name: "C", mean: 0.89, sampleSize: 46 },
+    control: { name: "C", mean: 0.89, sampleSize: 42 },
     variants: [
       {
         name: "T1",
         mean: 0.92,
-        sampleSize: 6,
-        pValue: 0.21,
+        sampleSize: 11,
+        pValue: 0.14,
         percentChange: 3.4,
         isSignificant: false,
       },

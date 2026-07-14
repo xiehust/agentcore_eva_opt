@@ -114,6 +114,7 @@ def _connect() -> sqlite3.Connection:
             agent_name            TEXT NOT NULL,
             challenger_agent_id   TEXT,
             challenger_agent_name TEXT,
+            kind                  TEXT NOT NULL DEFAULT 'config_bundle',
             stage                 TEXT NOT NULL,
             artifacts             TEXT NOT NULL DEFAULT '{}',
             error                 TEXT,
@@ -156,6 +157,11 @@ def _connect() -> sqlite3.Connection:
         _conn.execute("ALTER TABLE datasets ADD COLUMN kind TEXT NOT NULL DEFAULT 'legacy'")
     if "cloud" not in dataset_cols:
         _conn.execute("ALTER TABLE datasets ADD COLUMN cloud TEXT")
+    experiment_cols = [r[1] for r in _conn.execute("PRAGMA table_info(experiments)")]
+    if "kind" not in experiment_cols:
+        _conn.execute(
+            "ALTER TABLE experiments ADD COLUMN kind TEXT NOT NULL DEFAULT 'config_bundle'"
+        )
     _conn.commit()
     return _conn
 
@@ -606,6 +612,7 @@ def _experiment_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "agentName": row["agent_name"],
         "challengerAgentId": row["challenger_agent_id"],
         "challengerAgentName": row["challenger_agent_name"],
+        "kind": row["kind"],
         "stage": row["stage"],
         "artifacts": json.loads(row["artifacts"]),
         "error": row["error"],
@@ -620,6 +627,7 @@ def create_experiment(
     name: str,
     agent_id: str,
     agent_name: str,
+    kind: str = "config_bundle",
     stage: str = "recommend",
 ) -> None:
     now = time.time()
@@ -627,11 +635,11 @@ def create_experiment(
         conn = _connect()
         conn.execute(
             """
-            INSERT INTO experiments (id, name, agent_id, agent_name, stage,
+            INSERT INTO experiments (id, name, agent_id, agent_name, kind, stage,
                                      artifacts, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, '{}', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, '{}', ?, ?)
             """,
-            (experiment_id, name, agent_id, agent_name, stage, now, now),
+            (experiment_id, name, agent_id, agent_name, kind, stage, now, now),
         )
         conn.commit()
 

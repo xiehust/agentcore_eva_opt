@@ -12,6 +12,7 @@ const EXP: ExperimentRecord = {
   agentName: "Champ",
   challengerAgentId: null,
   challengerAgentName: null,
+  kind: "config_bundle",
   stage: "promoted",
   artifacts: {
     gatewayId: "gw-1",

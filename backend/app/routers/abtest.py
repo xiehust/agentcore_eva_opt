@@ -387,8 +387,13 @@ def _target_ab_setup_run(
 ) -> dict[str, Any]:
     """Add the v2 target + v2 online-eval, stop the bundle test, create target A/B.
 
-    Reuses the step-7 gateway (same gatewayId/Arn). Idempotent: a rerun adopts
-    the existing v2 target / eval-config / target A/B test by name.
+    Reuses the caller-supplied gateway (same gatewayId/Arn). Idempotent: a rerun
+    adopts the existing v2 target / eval-config / target A/B test by name.
+
+    Standalone target-based use: when ``req.bundleAbTestId`` is falsy (None/"")
+    there is no config-bundle test to stop, so the STOP step is skipped entirely
+    and this runs as a self-contained target-based A/B with no dependency on a
+    prior config-bundle experiment.
     """
     progress("adding v2 gateway target")
     target_id_v2 = _create_gateway_target_idempotent(
@@ -412,6 +417,8 @@ def _target_ab_setup_run(
         progress=progress,
     )
     online_eval_arn_v2 = oe.get("onlineEvaluationConfigArn")
+    # Only stop a config-bundle test when one was supplied. Standalone
+    # target-based runs pass bundleAbTestId=None → no STOP call at all.
     if req.bundleAbTestId:
         _stop_ab_test_if_running(data_client, req.bundleAbTestId, progress)
     progress("creating target A/B test")

@@ -471,9 +471,12 @@ def config_bundle_variants(
 def target_variants(
     target_v1: str,
     target_v2: str,
-    control_weight: int = 90,
-    treatment_weight: int = 10,
+    control_weight: int = 80,
+    treatment_weight: int = 20,
 ) -> list[dict[str, Any]]:
+    """Target-based A/B variants. Defaults to the doc-recommended 80/20
+    control/treatment split so the optional phased rollout can ramp the
+    treatment 20→50→100 from where the A/B test started."""
     return [
         {
             "name": "C",

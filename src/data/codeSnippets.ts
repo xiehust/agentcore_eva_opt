@@ -231,28 +231,40 @@ agentcore_control.update_configuration_bundle(
     clientToken=str(uuid.uuid4()),
 )`,
 
-  targetAB: `# Deploy v2 (new escalate_to_hr_manager tool + improved prompt), add a target
+  targetAB: `# Standalone target-based A/B: its OWN gateway + two runtimes (v1 champion,
+# v2 challenger = new escalate_to_hr_manager tool + improved prompt). No config-
+# bundle test involved — nothing to stop first.
 deploy_agent(name=V2_NAME, version="v2")
-agentcore_control.create_gateway_target(gatewayIdentifier=GATEWAY_ID,
-    name="HRAgentV2", targetConfiguration={"http": {"agentcoreRuntime":
-        {"arn": AGENT_ARN_V2, "qualifier": "DEFAULT"}}},
-    credentialProviderConfigurations=[{"credentialProviderType": "GATEWAY_IAM_ROLE"}],
-    clientToken=str(uuid.uuid4()))
+gw = agentcore_control.create_gateway(name=f"HRTargetGW{SUFFIX}",
+    authorizerType="AWS_IAM", roleArn=ROLE_ARN, clientToken=str(uuid.uuid4()))
+for name, arn in (("HRAgentV1", AGENT_ARN_V1), ("HRAgentV2", AGENT_ARN_V2)):
+    agentcore_control.create_gateway_target(gatewayIdentifier=gw["gatewayId"],
+        name=name, targetConfiguration={"http": {"agentcoreRuntime":
+            {"arn": arn, "qualifier": "DEFAULT"}}},
+        credentialProviderConfigurations=[{"credentialProviderType": "GATEWAY_IAM_ROLE"}],
+        clientToken=str(uuid.uuid4()))
 
-# 90/10 canary across two runtimes (per-variant eval configs, different log groups)
-agentcore.create_ab_test(
+# 80/20 split across two runtimes (per-variant eval configs, different log groups)
+ab = agentcore.create_ab_test(
     name=f"HRTargetAB{SUFFIX}",
-    gatewayArn=GATEWAY_ARN, roleArn=ROLE_ARN, enableOnCreate=True,
+    gatewayArn=gw["gatewayArn"], roleArn=ROLE_ARN, enableOnCreate=True,
     evaluationConfig={"perVariantOnlineEvaluationConfig": [
-        {"name": "C", "onlineEvaluationConfigArn": ONLINE_EVAL_ARN},
+        {"name": "C", "onlineEvaluationConfigArn": ONLINE_EVAL_V1_ARN},
         {"name": "T1", "onlineEvaluationConfigArn": ONLINE_EVAL_V2_ARN}]},
     gatewayFilter={"targetPaths": ["/HRAgentV1/*"]},
     variants=[
-        {"name": "C",  "weight": 90, "variantConfiguration": {"target": {"name": "HRAgentV1"}}},
-        {"name": "T1", "weight": 10, "variantConfiguration": {"target": {"name": "HRAgentV2"}}},
+        {"name": "C",  "weight": 80, "variantConfiguration": {"target": {"name": "HRAgentV1"}}},
+        {"name": "T1", "weight": 20, "variantConfiguration": {"target": {"name": "HRAgentV2"}}},
     ],
     clientToken=str(uuid.uuid4()),
-)`,
+)
+
+# Promote the winner: stop the test and cut the winning target to 100%.
+# (Or ramp gradually as an optional phased rollout: 20 → 50 → 100.)
+agentcore.update_ab_test(abTestId=ab["abTestId"], variants=[
+    {"name": "C",  "weight": 0,   "variantConfiguration": {"target": {"name": "HRAgentV1"}}},
+    {"name": "T1", "weight": 100, "variantConfiguration": {"target": {"name": "HRAgentV2"}}},
+])`,
 
   cleanup: `# Tear down everything created by the notebook (each block is independent)
 agentcore.update_ab_test(abTestId=ab_id, executionStatus="STOPPED")

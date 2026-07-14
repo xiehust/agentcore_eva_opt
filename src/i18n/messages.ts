@@ -325,8 +325,14 @@ export interface Messages {
     resultsReady: string;
     v1Label: string;
     v2Label: string;
+    promoteEyebrow: string;
+    promoteTitle: string;
+    promoteBody: string;
+    promoteBtn: string;
+    promoted: string;
     rolloutEyebrow: string;
     rolloutTitle: string;
+    rolloutOptional: string;
     rollout: { canary: string; ramp: string; full: string };
     rolloutNotes: { canary: string; ramp: string; full: string };
     rampBtn: (w: number) => string;
@@ -648,6 +654,11 @@ export interface Messages {
       namePlaceholder: string;
       pickAgent: string;
       noConfigWarning: string;
+      kindLabel: string;
+      kindConfigBundle: string;
+      kindTargetBased: string;
+      kindConfigBundleDesc: string;
+      kindTargetBasedDesc: string;
       create: string;
       open: string;
       stages: {
@@ -711,6 +722,31 @@ export interface Messages {
         currentWeight: (w: number) => string;
         rolloutHint: string;
       };
+      // Standalone target-based A/B (its own gateway + two runtimes, 80/20,
+      // stop → promote winner, then an OPTIONAL phased rollout).
+      targetBased: {
+        title: string;
+        intro: string;
+        pickChallenger: string;
+        noChallenger: string;
+        setupBtn: string;
+        setupHint: string;
+        splitLabel: string;
+        trafficTitle: string;
+        monitorTitle: string;
+        v1Label: string;
+        v2Label: string;
+        promoteTitle: string;
+        promoteHint: string;
+        promoteBtn: string;
+        promoted: string;
+        rolloutTitle: string;
+        rolloutOptional: string;
+        rolloutHint: string;
+        setWeight: (w: number) => string;
+        currentWeight: (w: number) => string;
+      };
+      finishBtn: string;
       doneTitle: string;
       doneBody: string;
       goCleanup: string;
@@ -978,26 +1014,26 @@ export const en: Messages = {
           ["Session stickiness", "The variant is chosen once per session, not per request — a user switching prompts mid-conversation would corrupt both variants' data."],
           ["Online evaluation", "Unlike Step 4's one-shot batch, an online evaluation config continuously scores sessions as they complete, per variant. This is what production monitoring looks like."],
           ["Statistical significance", "Results come with sample sizes and p-values. n=10 per variant with p>0.05 means 'suggestive, not proven' — the sim deliberately shows this so you learn to distrust small samples."],
-          ["50/50 because it's cheap", "A config change is low-risk (same code!), so equal split maximizes statistical power. Contrast with the next step."],
+          ["50/50 because it's cheap", "A config change is low-risk (same code!), so equal split maximizes statistical power. Contrast with the target-based flow's 80/20."],
         ],
-        takeaway: "Config-level change validated with a fair experiment. But what if the change is CODE? That needs different routing — next step.",
+        takeaway: "Config-level change validated with a fair experiment. This is one of two independent A/B flows — when the change is CODE (not config), reach for the standalone target-based test instead.",
       },
     },
     targetAB: {
       title: "A/B Test — Target-Based Routing",
       shortTitle: "Target A/B",
-      lede: "When the change is code — a new tool, a framework upgrade, a different implementation — route across two separate runtimes. We deploy v2 (it adds an escalation tool and an improved baked-in prompt), then canary it: 10% of traffic to v2, evaluated by its own config, ramping up only if metrics hold.",
+      lede: "This is a STANDALONE target-based A/B test — its own gateway, its own two runtimes — independent of the config-bundle test in the previous step. When the change is code (a new tool, a framework upgrade, a different implementation) you route across two separate runtimes: v1 (champion) and v2 (challenger, which adds an escalation tool + improved prompt). Start at 80/20, stop → promote the winner, or ramp gradually as an optional rollout.",
       learn: {
         purpose:
-          "Ship a NEW VERSION of the agent safely. A bundle can only change what config covers; v2 here adds an escalation tool — that's code, so it needs its own runtime. The canary pattern answers the release question: 'can v2 take production traffic without breaking things?' — by letting it prove itself on a small slice first.",
+          "Ship a NEW VERSION of the agent safely, as a self-contained experiment. A bundle can only change what config covers; v2 here adds an escalation tool — that's code, so it needs its own runtime. This flow stands on its own: it creates its own gateway and never depends on (or stops) the config-bundle test. The pattern answers the release question: 'can v2 take production traffic without breaking things?' — by letting it prove itself on a smaller slice first.",
         points: [
-          ["Bundle A/B vs canary", "Bundle A/B (previous step) optimizes CONFIG on one runtime at 50/50 — a fair experiment. The canary routes between TWO runtimes at 90/10 — a safety mechanism. Same A/B API, different variantConfiguration (target vs configurationBundle), different intent: one asks 'which is better?', the other asks 'is the new one safe?'"],
-          ["Why 90/10, not 50/50", "The canary's blast radius IS the traffic share. If v2 has a regression, only 10% of sessions feel it. You trade statistical speed for production safety — the opposite trade-off from the bundle test."],
-          ["Per-variant evaluation", "Each target gets its own online evaluation config, so v1 and v2 accumulate separate score streams over the same real traffic mix — the evidence for the ramp decision."],
-          ["Weight ramping = release lever", "UpdateABTest moves weights 90/10 → 50/50 → 0/100 without redeploying anything. And it's symmetric: metrics degrade → set it back → instant rollback. Traffic weights become your deployment mechanism."],
-          ["One test per gateway", "The bundle test must stop before the canary starts — a real service constraint the sim preserves. Sequencing experiments is part of operating this in production."],
+          ["Config-bundle A/B vs target-based", "Config-bundle A/B (previous step) optimizes CONFIG on one runtime at 50/50 — a fair experiment. Target-based routes between TWO runtimes at 80/20 — a safer rollout. Same A/B API, different variantConfiguration (target vs configurationBundle), different intent: one asks 'which is better?', the other asks 'is the new one safe?'. They are two independent flows — pick the one your change calls for."],
+          ["Why 80/20, not 50/50", "The treatment's blast radius IS its traffic share. If v2 has a regression, only 20% of sessions feel it. You trade statistical speed for production safety — the opposite trade-off from the config-bundle test."],
+          ["Per-variant evaluation", "Each target gets its own online evaluation config (perVariantOnlineEvaluationConfig), so v1 and v2 accumulate separate score streams over the same real traffic mix — the evidence for the promote/ramp decision."],
+          ["Promote winner, then optional ramp", "Once the metrics hold, STOP the A/B and cut the winner to 100% — that's the promote. Or ramp gradually with UpdateABTest: 80/20 → 50/50 → 0/100, no redeploy. It's symmetric: metrics degrade → set it back → instant rollback. Traffic weights become your deployment mechanism."],
+          ["Owns its gateway", "Because it's standalone, this test creates its own gateway with a gatewayFilter on the v1 target path — it doesn't reuse or stop any other experiment. Each A/B flow is self-contained."],
         ],
-        takeaway: "This is the full release loop: evaluate → diagnose → recommend → experiment → canary → ramp. Every step earned by data, every step reversible.",
+        takeaway: "This is the full release loop as an independent flow: deploy v2 → 80/20 A/B → evaluate per variant → promote winner (or optional ramp). Every step earned by data, every step reversible.",
       },
     },
     cleanup: {
@@ -1264,24 +1300,32 @@ export const en: Messages = {
     v2ToolNote: (tool) =>
       `+ ${tool} — new tool (6 total). Improved system prompt baked into the code.`,
     canaryEyebrow: "Step 10b–d",
-    canaryTitle: "Canary A/B test",
-    setupBtn: "Set up 90/10 target A/B test",
-    setupBtnLive: "Set up 90/10 target A/B test (real)",
-    canaryLive: "Canary LIVE",
+    canaryTitle: "Standalone target A/B setup (own gateway)",
+    setupBtn: "Set up gateway + two targets + 80/20 A/B",
+    setupBtnLive: "Set up gateway + two targets + 80/20 A/B (real)",
+    canaryLive: "A/B LIVE",
     sendBtn: (n) => `Send ${n} target sessions`,
     sendBtnLive: (n) => `Send ${n} target sessions (real)`,
     resultsEyebrow: "Step 10e",
-    resultsTitle: "Canary results — v1 vs v2",
-    monitorBtn: "Monitor canary results",
-    monitorBtnLive: "Monitor canary results (real)",
+    resultsTitle: "A/B results — v1 vs v2",
+    monitorBtn: "Monitor A/B results",
+    monitorBtnLive: "Monitor A/B results (real)",
     resultsReady: "Results ready",
-    v1Label: "v1 (Control · 90%)",
-    v2Label: "v2 (Treatment · 10%)",
-    rolloutEyebrow: "Step 10f",
-    rolloutTitle: "Phased rollout",
+    v1Label: "v1 (Control · 80%)",
+    v2Label: "v2 (Treatment · 20%)",
+    promoteEyebrow: "Step 10f",
+    promoteTitle: "Promote winner",
+    promoteBody:
+      "Stop the A/B test and cut the winning target to 100% of traffic. This is the standalone target-based finish — the phased rollout below is an optional alternative.",
+    promoteBtn: "Stop A/B & promote winner (→ 100%)",
+    promoted: "Winner promoted (100%)",
+    rolloutEyebrow: "Step 10g",
+    rolloutTitle: "Phased rollout (optional)",
+    rolloutOptional:
+      "Optional — instead of an instant promote, ramp the treatment gradually and watch the metrics at each step: 20 → 50 → 100%.",
     rollout: { canary: "Canary", ramp: "Ramp", full: "Full" },
     rolloutNotes: {
-      canary: "10% to v2 — watch the metrics",
+      canary: "20% to v2 — watch the metrics",
       ramp: "50/50 — confidence building",
       full: "100% on v2 — retire v1",
     },
@@ -1704,6 +1748,11 @@ export const en: Messages = {
       namePlaceholder: "e.g. Improve HR prompt",
       pickAgent: "Champion agent (deployed)",
       noConfigWarning: "This agent has no config — set its system prompt and tool descriptions on the Agents page first.",
+      kindLabel: "A/B pattern",
+      kindConfigBundle: "Config-bundle A/B",
+      kindTargetBased: "Target-based A/B",
+      kindConfigBundleDesc: "One runtime, 50/50 — compare pure config (prompt / model-id / tool descriptions) as bundle versions.",
+      kindTargetBasedDesc: "Two runtimes, 80/20 — route between the champion and a deployed challenger (code / framework / model change).",
       create: "Create experiment",
       open: "Open",
       stages: {
@@ -1767,6 +1816,29 @@ export const en: Messages = {
         currentWeight: (w) => `Challenger traffic: ${w}%`,
         rolloutHint: "Updates the live A/B test weights (full variant configs are resent).",
       },
+      targetBased: {
+        title: "Target-based A/B (standalone)",
+        intro: "Route between two runtimes: the champion (control) and a deployed challenger (treatment). This flow owns its gateway — it doesn't depend on a config-bundle experiment.",
+        pickChallenger: "Challenger agent (deployed)",
+        noChallenger: "No other deployed agent — deploy a second agent (e.g. the HR v2 sample) on the Agents page to run a target-based test.",
+        setupBtn: "Set up gateway + two targets + target A/B (80/20)",
+        setupHint: "Creates its own gateway, a v1 target (champion) + v2 target (challenger), a per-variant online eval for each, then a target A/B test — no config-bundle test involved.",
+        splitLabel: "Initial split: 80 / 20 (control / treatment)",
+        trafficTitle: "Send traffic through the gateway",
+        monitorTitle: "Monitor results — v1 vs v2",
+        v1Label: "v1 (champion)",
+        v2Label: "v2 (challenger)",
+        promoteTitle: "Promote winner",
+        promoteHint: "Stop the A/B test and promote the winning target to 100% of traffic.",
+        promoteBtn: "Stop A/B & promote winner (→ 100%)",
+        promoted: "Winner promoted (100%)",
+        rolloutTitle: "Phased rollout (optional)",
+        rolloutOptional: "Optional — instead of an instant promote, ramp the treatment gradually: 20 → 50 → 100%.",
+        rolloutHint: "Updates the live A/B test weights (full variant configs are resent).",
+        setWeight: (w) => `Ramp to ${w}%`,
+        currentWeight: (w) => `Treatment traffic: ${w}%`,
+      },
+      finishBtn: "Finish experiment",
       doneTitle: "Experiment complete",
       doneBody: "Tear down the gateway, A/B tests, bundles, and online evals when you're finished.",
       goCleanup: "Go to Cleanup →",
@@ -2033,26 +2105,26 @@ export const zh: Messages = {
           ["session 粘性", "变体是按 session 定一次，不是按请求 — 用户聊到一半被换了提示词，两边的数据就全被污染了。"],
           ["在线评估", "不同于第 4 步那种一次性的批量评估，在线评估配置会在 session 结束时持续打分、按变体分别累积。生产环境的监控就是这个形态。"],
           ["统计显著性", "结果带样本量和 p 值。每组 n=10、p>0.05 的意思是'有苗头，但没证实' — 仿真故意呈现这种结果，让你对小样本保持警惕。"],
-          ["50/50 是因为风险低", "配置变更风险小（代码没动），流量对半分能最快出统计结论。跟下一步正好相反。"],
+          ["50/50 是因为风险低", "配置变更风险小(代码没动),流量对半分能最快出统计结论。跟目标路由的 80/20 正好相反。"],
         ],
-        takeaway: "配置级变更通过了公平实验。但要是变更动了代码呢？那得换一种路由 — 看下一步。",
+        takeaway: "配置级变更通过了公平实验。这是两个彼此独立的 A/B 流程之一 — 当变更动的是代码(而非配置)时,改用独立的目标路由测试。",
       },
     },
     targetAB: {
       title: "A/B 测试 — 目标路由",
       shortTitle: "目标 A/B",
-      lede: "当变更涉及代码（新工具、框架升级、不同实现）时，需要在两个独立的运行时之间路由。我们部署 v2（新增一个升级转接工具及内置的改进提示词），然后金丝雀发布：10% 流量到 v2，由独立评估配置打分，指标稳定后再逐步放量。",
+      lede: "这是一个独立(standalone)的目标路由 A/B 测试 — 自带网关、自带两个运行时 — 与上一步的配置包测试互不依赖。当变更涉及代码(新工具、框架升级、不同实现)时,在两个独立运行时之间路由:v1(冠军)与 v2(挑战者,新增升级转接工具 + 改进提示词)。从 80/20 起步,停止 → 提升赢家,或作为可选放量逐步加码。",
       learn: {
         purpose:
-          "把 agent 的新版本安全发上线。配置包只能改配置够得着的东西；这里的 v2 加了一个升级转接工具 — 那是代码，必须有自己的 runtime。金丝雀要回答的是发布问题：'v2 接生产流量会不会出事？' — 先给它一小片流量，让它自己证明。",
+          "把 agent 的新版本作为一个自包含实验安全发上线。配置包只能改配置够得着的东西;这里的 v2 加了一个升级转接工具 — 那是代码,必须有自己的 runtime。这个流程独立成立:它自建网关,从不依赖(也从不停止)配置包测试。它要回答的是发布问题:'v2 接生产流量会不会出事?' — 先给它一小片流量,让它自己证明。",
         points: [
-          ["配置包 A/B vs 金丝雀", "配置包 A/B（上一步）在同一个 runtime 上 50/50 地测配置 — 是公平实验；金丝雀在两个 runtime 之间 90/10 地分流 — 是安全机制。同一个 A/B API，variantConfiguration 不一样（target vs configurationBundle），要回答的问题也不一样：一个问'哪个更好'，一个问'新的稳不稳'。"],
-          ["为什么 90/10 而不是 50/50", "金丝雀的爆炸半径就等于它分到的流量。v2 真有回归，也只波及 10% 的 session。拿统计速度换生产安全 — 和配置包测试的取舍正好相反。"],
-          ["按变体各自评估", "每个 target 挂自己的在线评估配置，v1、v2 在同一批真实流量上各自积累分数 — 放量决策就看这份证据。"],
-          ["调权重就是发布", "UpdateABTest 把权重从 90/10 → 50/50 → 0/100，全程不用重新部署任何东西。而且是双向的：指标一恶化，权重调回去，回滚就是几秒钟的事。流量权重本身成了发布机制。"],
-          ["一个网关同时只能跑一个测试", "金丝雀开始前得先停掉配置包测试 — 真实的服务约束，仿真特意保留。给实验排期也是生产运维的一部分。"],
+          ["配置包 A/B vs 目标路由", "配置包 A/B(上一步)在同一个 runtime 上 50/50 地测配置 — 是公平实验;目标路由在两个 runtime 之间 80/20 地分流 — 是更安全的发布。同一个 A/B API,variantConfiguration 不一样(target vs configurationBundle),要回答的问题也不一样:一个问'哪个更好',一个问'新的稳不稳'。两者是彼此独立的流程 — 按你的变更类型选一个。"],
+          ["为什么 80/20 而不是 50/50", "实验组的爆炸半径就等于它分到的流量。v2 真有回归,也只波及 20% 的 session。拿统计速度换生产安全 — 和配置包测试的取舍正好相反。"],
+          ["按变体各自评估", "每个 target 挂自己的在线评估配置(perVariantOnlineEvaluationConfig),v1、v2 在同一批真实流量上各自积累分数 — 提升/放量决策就看这份证据。"],
+          ["先提升赢家,再可选放量", "指标一旦稳住,就停止 A/B 并把赢家切到 100% — 这就是提升。或者用 UpdateABTest 逐步放量:80/20 → 50/50 → 0/100,全程不用重新部署。而且是双向的:指标一恶化,权重调回去,回滚就是几秒钟的事。流量权重本身成了发布机制。"],
+          ["自带网关", "因为它是独立的,这个测试自建网关,并在 v1 target 路径上设 gatewayFilter — 不复用、也不停止任何其他实验。每个 A/B 流程都自成一体。"],
         ],
-        takeaway: "这就是完整的发布闭环：评估 → 诊断 → 推荐 → 实验 → 金丝雀 → 放量。每步有数据撑腰，每步都能回退。",
+        takeaway: "这就是作为独立流程的完整发布闭环:部署 v2 → 80/20 A/B → 按变体评估 → 提升赢家(或可选放量)。每步有数据撑腰,每步都能回退。",
       },
     },
     cleanup: {
@@ -2313,24 +2385,32 @@ export const zh: Messages = {
     v2Arn: "v2 运行时 ARN",
     v2ToolNote: (tool) => `+ ${tool} — 新工具（共 6 个）。改进的系统提示词已内置到代码中。`,
     canaryEyebrow: "步骤 10b–d",
-    canaryTitle: "金丝雀 A/B 测试",
-    setupBtn: "创建 90/10 目标 A/B 测试",
-    setupBtnLive: "创建 90/10 目标 A/B 测试（真实）",
-    canaryLive: "金丝雀运行中",
+    canaryTitle: "独立目标 A/B 搭建（自带网关）",
+    setupBtn: "创建网关 + 两个 Target + 80/20 A/B",
+    setupBtnLive: "创建网关 + 两个 Target + 80/20 A/B（真实）",
+    canaryLive: "A/B 运行中",
     sendBtn: (n) => `发送 ${n} 个目标会话`,
     sendBtnLive: (n) => `发送 ${n} 个目标会话（真实）`,
     resultsEyebrow: "步骤 10e",
-    resultsTitle: "金丝雀结果 — v1 vs v2",
-    monitorBtn: "监控金丝雀结果",
-    monitorBtnLive: "监控金丝雀结果（真实）",
+    resultsTitle: "A/B 结果 — v1 vs v2",
+    monitorBtn: "监控 A/B 结果",
+    monitorBtnLive: "监控 A/B 结果（真实）",
     resultsReady: "结果就绪",
-    v1Label: "v1（对照 · 90%）",
-    v2Label: "v2（实验 · 10%）",
-    rolloutEyebrow: "步骤 10f",
-    rolloutTitle: "分阶段放量",
+    v1Label: "v1（对照 · 80%）",
+    v2Label: "v2（实验 · 20%）",
+    promoteEyebrow: "步骤 10f",
+    promoteTitle: "提升赢家",
+    promoteBody:
+      "停止 A/B 测试,并把胜出的 target 切到 100% 流量。这是独立目标路由测试的收尾动作 — 下方的分阶段放量是可选的替代方案。",
+    promoteBtn: "停止 A/B 并提升赢家(→ 100%)",
+    promoted: "赢家已提升(100%)",
+    rolloutEyebrow: "步骤 10g",
+    rolloutTitle: "分阶段放量(可选)",
+    rolloutOptional:
+      "可选 — 不做一次性提升,而是逐步放量,并在每一步观察指标:20 → 50 → 100%。",
     rollout: { canary: "金丝雀", ramp: "放量", full: "全量" },
     rolloutNotes: {
-      canary: "10% 流量到 v2 — 观察指标",
+      canary: "20% 流量到 v2 — 观察指标",
       ramp: "50/50 — 建立信心",
       full: "100% 到 v2 — 下线 v1",
     },
@@ -2736,6 +2816,11 @@ export const zh: Messages = {
       namePlaceholder: "例如:优化 HR prompt",
       pickAgent: "冠军 Agent(已部署)",
       noConfigWarning: "该 Agent 没有配置 — 请先在 Agents 页设置 system prompt 和工具描述。",
+      kindLabel: "A/B 模式",
+      kindConfigBundle: "Config-bundle A/B",
+      kindTargetBased: "Target-based A/B",
+      kindConfigBundleDesc: "单个 runtime,50/50 — 以 bundle 版本比较纯配置(prompt / model-id / 工具描述)。",
+      kindTargetBasedDesc: "两个 runtime,80/20 — 在冠军与一个已部署挑战者之间路由(代码 / 框架 / 模型变更)。",
       create: "创建实验",
       open: "打开",
       stages: {
@@ -2799,6 +2884,29 @@ export const zh: Messages = {
         currentWeight: (w) => `挑战者流量:${w}%`,
         rolloutHint: "实时更新 A/B 测试权重(重发完整 variant 配置)。",
       },
+      targetBased: {
+        title: "Target-based A/B(独立)",
+        intro: "在两个 runtime 之间路由:冠军(对照)与一个已部署的挑战者(实验)。此流程自带网关 — 不依赖任何 config-bundle 实验。",
+        pickChallenger: "挑战者 Agent(已部署)",
+        noChallenger: "没有其他已部署 Agent — 请先在 Agents 页部署第二个 Agent(例如 HR v2 样例)才能跑目标路由测试。",
+        setupBtn: "创建网关 + 两个 Target + 目标 A/B(80/20)",
+        setupHint: "创建自己的网关、一个 v1 target(冠军)+ 一个 v2 target(挑战者)、各自的 per-variant 在线评估,然后创建目标 A/B 测试 — 全程不涉及 config-bundle 测试。",
+        splitLabel: "初始分流:80 / 20(对照 / 实验)",
+        trafficTitle: "通过网关发送流量",
+        monitorTitle: "监控结果 — v1 vs v2",
+        v1Label: "v1(冠军)",
+        v2Label: "v2(挑战者)",
+        promoteTitle: "提升赢家",
+        promoteHint: "停止 A/B 测试,并把胜出的 target 提升到 100% 流量。",
+        promoteBtn: "停止 A/B 并提升赢家(→ 100%)",
+        promoted: "赢家已提升(100%)",
+        rolloutTitle: "分阶段放量(可选)",
+        rolloutOptional: "可选 — 不做一次性提升,而是逐步放量:20 → 50 → 100%。",
+        rolloutHint: "实时更新 A/B 测试权重(重发完整 variant 配置)。",
+        setWeight: (w) => `放量到 ${w}%`,
+        currentWeight: (w) => `实验流量:${w}%`,
+      },
+      finishBtn: "完成实验",
       doneTitle: "实验完成",
       doneBody: "结束后请清理网关、A/B 测试、Bundle 和在线评估资源。",
       goCleanup: "前往资源清理 →",

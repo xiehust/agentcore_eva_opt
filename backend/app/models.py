@@ -319,10 +319,17 @@ EXPERIMENT_STAGES = (
     "done",
 )
 
+# Which A/B pattern an experiment runs. config_bundle = one shared runtime,
+# variantConfiguration.configurationBundle. target_based = two endpoints,
+# variantConfiguration.target + perVariantOnlineEvaluationConfig + gatewayFilter.
+EXPERIMENT_KINDS = ("config_bundle", "target_based")
+
 
 class ExperimentCreateRequest(BaseModel):
     name: str
     agentId: str
+    # Literal makes an out-of-set kind a 422 at request validation.
+    kind: Literal["config_bundle", "target_based"] = "config_bundle"
 
 
 class ExperimentUpdateRequest(BaseModel):

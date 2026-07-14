@@ -28,9 +28,9 @@ describe("StepHeader learn-more panel", () => {
     expect(panel).toHaveTextContent(/purpose/i);
     expect(panel).toHaveTextContent(/key concepts/i);
     expect(panel).toHaveTextContent(/takeaway/i);
-    // Canary-specific teaching content is present.
+    // Target-based teaching content is present.
     expect(panel).toHaveTextContent(/blast radius/i);
-    expect(panel).toHaveTextContent(/90\/10/);
+    expect(panel).toHaveTextContent(/80\/20/);
 
     // Collapse: AnimatePresence keeps the exiting node briefly (jsdom has no
     // real animation frames), so assert the toggle state instead.

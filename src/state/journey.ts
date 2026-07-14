@@ -84,7 +84,8 @@ export interface JourneyArtifacts {
   serviceNameV2?: string;
   targetAbTestId?: string;
   targetTrafficSent?: boolean;
-  rolloutWeight?: number; // T1 (v2) weight: 10 → 50 → 100
+  targetPromoted?: boolean; // winner cut to 100% (standalone target-based promote)
+  rolloutWeight?: number; // T1 (v2) weight: 20 → 50 → 100 (optional phased rollout)
   [key: string]: string | number | boolean | undefined;
 }
 

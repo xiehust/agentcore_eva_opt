@@ -28,11 +28,12 @@ def test_config_bundle_variants_payload() -> None:
     assert variants[1]["variantConfiguration"]["configurationBundle"]["bundleArn"] == "arnT"
 
 
-def test_target_variants_payload_90_10() -> None:
+def test_target_variants_payload_80_20() -> None:
+    # Target-based A/B uses the doc-recommended 80/20 split (rollout ramps 20→50→100).
     variants = agentcore.target_variants("HRAgentV1", "HRAgentV2")
-    assert variants[0]["weight"] == 90
+    assert variants[0]["weight"] == 80
     assert variants[0]["variantConfiguration"]["target"]["name"] == "HRAgentV1"
-    assert variants[1]["weight"] == 10
+    assert variants[1]["weight"] == 20
     assert variants[1]["variantConfiguration"]["target"]["name"] == "HRAgentV2"
 
 

@@ -15,17 +15,22 @@ import { TARGET_AB_RESULTS } from "../data/results";
 import { V2_EXTRA_TOOL } from "../data/agent";
 import type { ABMetric, SimStage } from "../sim/types";
 
+// Optional phased rollout starts from the treatment's A/B weight (20%) and
+// ramps to 100%. The initial 20 matches the standalone 80/20 A/B split.
 const ROLLOUT_STEPS = [
-  { weight: 10, key: "canary" as const },
+  { weight: 20, key: "canary" as const },
   { weight: 50, key: "ramp" as const },
   { weight: 100, key: "full" as const },
 ];
 
+// Standalone target-based setup: this step owns its OWN gateway (it does not
+// reuse Step 9's config-bundle gateway, and it never stops that A/B test).
 const SETUP_STAGES: SimStage[] = [
-  { key: "tgt", label: "Adding v2 gateway target", ms: 420, terminal: "READY" },
-  { key: "eval", label: "Creating v2 online eval config", ms: 380 },
-  { key: "stop", label: "Stopping config-bundle A/B test", ms: 360, terminal: "STOPPED" },
-  { key: "ab", label: "Creating target A/B test (C 90% / T1 10%)", ms: 460, terminal: "RUNNING" },
+  { key: "gw", label: "Creating gateway (IAM authorizer) + role", ms: 440, terminal: "READY" },
+  { key: "tgt1", label: "Adding v1 target → champion runtime", ms: 400, terminal: "READY" },
+  { key: "tgt2", label: "Adding v2 target → challenger runtime", ms: 400, terminal: "READY" },
+  { key: "eval", label: "Creating per-variant online eval configs (v1 + v2)", ms: 420 },
+  { key: "ab", label: "Creating target A/B test (C 80% / T1 20%)", ms: 460, terminal: "RUNNING" },
 ];
 
 /** Step 8 — target-based canary rollout of v2 across two runtimes. */
@@ -47,6 +52,7 @@ export function Step8TargetAB() {
     state.artifacts.targetTrafficSent ? TARGET_PROMPTS.length : 0,
   );
   const [resultsReady, setResultsReady] = useState(false);
+  const [promoted, setPromoted] = useState(!!state.artifacts.targetPromoted);
   const [rolloutIdx, setRolloutIdx] = useState(0);
   const [abMetrics, setAbMetrics] = useState<ABMetric[]>(TARGET_AB_RESULTS);
   const busy = useRef(false);
@@ -177,6 +183,17 @@ export function Step8TargetAB() {
       );
       await new Promise((r) => setTimeout(r, 30_000));
     }
+  };
+
+  // Promote winner: stop the A/B and cut the winning target to 100%. This is
+  // the primary "done" action; the phased rollout below is an optional alternative.
+  const promoteWinner = () => {
+    setPromoted(true);
+    dispatch({
+      type: "COMPLETE_STEP",
+      step: "targetAB",
+      artifacts: { targetPromoted: true, rolloutWeight: 100 },
+    });
   };
 
   const advanceRollout = () => {
@@ -325,10 +342,25 @@ export function Step8TargetAB() {
           </motion.div>
         )}
 
-        {/* Rollout */}
+        {/* Promote winner (stop → cut to 100%) — primary "done" action */}
         {resultsReady && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <Card eyebrow={t.step8.rolloutEyebrow} title={t.step8.rolloutTitle} accent="orange">
+            <Card eyebrow={t.step8.promoteEyebrow} title={t.step8.promoteTitle} accent="orange">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="max-w-xl text-sm text-fog-300">{t.step8.promoteBody}</p>
+                <Button onClick={promoteWinner} disabled={promoted}>
+                  {promoted ? t.step8.promoted : t.step8.promoteBtn}
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Rollout (optional alternative to an instant promote) */}
+        {resultsReady && !promoted && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <Card eyebrow={t.step8.rolloutEyebrow} title={t.step8.rolloutTitle} accent="none">
+              <p className="mb-4 text-sm text-fog-400">{t.step8.rolloutOptional}</p>
               <div className="mb-4 flex items-center gap-2">
                 {ROLLOUT_STEPS.map((s, i) => (
                   <div key={s.weight} className="flex items-center gap-2">

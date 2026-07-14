@@ -41,7 +41,11 @@ def create_experiment(req: ExperimentCreateRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="agent is not deployed")
     experiment_id = uuid.uuid4().hex[:12]
     db.create_experiment(
-        experiment_id, name=req.name, agent_id=req.agentId, agent_name=agent["name"]
+        experiment_id,
+        name=req.name,
+        agent_id=req.agentId,
+        agent_name=agent["name"],
+        kind=req.kind,
     )
     return _get_or_404(experiment_id)
 

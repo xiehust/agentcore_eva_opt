@@ -308,6 +308,12 @@ export interface SampleDatasetEntry extends SampleDataset {
 }
 
 // ─── Experiments (optimization flow) ───────────────────────────────────────
+/** Which A/B pattern an experiment runs — two independent, self-contained flows:
+ *   config_bundle → ONE runtime, variantConfiguration.configurationBundle, 50/50.
+ *   target_based  → TWO endpoints, variantConfiguration.target + per-variant
+ *                   online-eval + gatewayFilter, 80/20 with an optional rollout. */
+export type ExperimentKind = "config_bundle" | "target_based";
+
 export type ExperimentStage =
   | "recommend"
   | "bundles"
@@ -328,6 +334,29 @@ export const EXPERIMENT_STAGES: ExperimentStage[] = [
   "canary_monitor",
   "done",
 ];
+
+/** Per-kind stage sequences so progress/labels match each flow. Config-bundle
+ * runs recommend→bundles→A/B→monitor→promote; target-based skips recommend/
+ * bundles and runs its own gateway setup→A/B→monitor→roll-out-winner. */
+export const CONFIG_BUNDLE_STAGES: ExperimentStage[] = [
+  "recommend",
+  "bundles",
+  "abtest",
+  "monitor",
+  "promoted",
+  "done",
+];
+
+export const TARGET_BASED_STAGES: ExperimentStage[] = [
+  "recommend",
+  "abtest",
+  "monitor",
+  "done",
+];
+
+export function stagesForKind(kind: ExperimentKind): ExperimentStage[] {
+  return kind === "target_based" ? TARGET_BASED_STAGES : CONFIG_BUNDLE_STAGES;
+}
 
 // Matches agentcore.normalize_ab_results and the sim's ABMetric shape
 // (src/sim/types.ts), so metrics flow straight into ABComparisonChart.
@@ -398,6 +427,7 @@ export interface ExperimentRecord {
   agentName: string;
   challengerAgentId: string | null;
   challengerAgentName: string | null;
+  kind: ExperimentKind;
   stage: ExperimentStage;
   artifacts: ExperimentArtifacts;
   error: string | null;
@@ -681,7 +711,7 @@ export class LiveApi {
   listExperiments() {
     return this.request<{ experiments: ExperimentRecord[] }>("GET", "/experiments");
   }
-  createExperiment(body: { name: string; agentId: string }) {
+  createExperiment(body: { name: string; agentId: string; kind?: ExperimentKind }) {
     return this.request<ExperimentRecord>("POST", "/experiments", body);
   }
   getExperiment(id: string) {

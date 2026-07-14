@@ -148,3 +148,36 @@ def test_missing_bundle_id_skips_stop() -> None:
     dd = FakeData(bundle_status="RUNNING")
     _target_ab_setup_run(req, FakeControl(), dd, lambda _m: None)
     assert not any(n == "get_ab_test" for n, _ in dd.calls)
+
+
+def test_standalone_target_setup_makes_no_stop_call_and_builds_target_payload() -> None:
+    """Standalone target-based A/B (no config-bundle test): the setup makes ZERO
+    update_ab_test(executionStatus="STOPPED") calls and still builds a target A/B
+    create payload with per-variant online-eval + gatewayFilter + target variants."""
+    for bundle_id in (None, ""):
+        req = _req()
+        req.bundleAbTestId = bundle_id
+        cc, dd = FakeControl(), FakeData(bundle_status="RUNNING")
+        _target_ab_setup_run(req, cc, dd, lambda _m: None)
+
+        # (a) zero STOP calls — no config-bundle test to stop.
+        stop_calls = [
+            k
+            for n, k in dd.calls
+            if n == "update_ab_test" and k.get("executionStatus") == "STOPPED"
+        ]
+        assert stop_calls == [], f"expected no STOP call for bundleAbTestId={bundle_id!r}"
+
+        # (b) target A/B create payload is doc-shaped.
+        ab = _kw(dd.calls, "create_ab_test")
+        per = ab["evaluationConfig"]["perVariantOnlineEvaluationConfig"]
+        assert [v["name"] for v in per] == ["C", "T1"]
+        assert per[0]["onlineEvaluationConfigArn"] == "arn:oe-v1"  # C → eval v1
+        assert per[1]["onlineEvaluationConfigArn"] == "arn:oe-v2"  # T1 → eval v2
+        assert ab["gatewayFilter"]["targetPaths"] == ["/HRAgentV1/*"]
+        variants = ab["variants"]
+        assert variants[0]["variantConfiguration"]["target"]["name"] == "HRAgentV1"
+        assert variants[1]["variantConfiguration"]["target"]["name"] == "HRAgentV2"
+        # doc-recommended 80/20 control/treatment split.
+        assert variants[0]["weight"] == 80
+        assert variants[1]["weight"] == 20
